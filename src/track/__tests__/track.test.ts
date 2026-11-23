@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { Track, TrackFrame } from '../Track';
 import { DS, GeomKind } from '../types';
 
-const ALL: GeomKind[] = ['straight', 'slope', 'wave', 'turn', 'scurve', 'sharpTurn', 'circle', 'helix', 'loop', 'corkscrew', 'drop', 'twist'];
+const ALL: GeomKind[] = ['straight', 'slope', 'wave', 'turn', 'scurve', 'sharpTurn', 'circle', 'helix', 'loop', 'corkscrew', 'drop', 'dip', 'twist'];
 
 describe('Track', () => {
   for (const seed of [1, 7, 42, 1234, 98765]) {

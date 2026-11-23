@@ -256,6 +256,29 @@ export function drop(st: GeomStart, length: number, depth: number): GeomProgram 
   };
 }
 
+/** Sudden dip: a short, sharp plunge and kick back up. */
+export function dip(st: GeomStart, length: number, depth: number): GeomProgram {
+  return {
+    kind: 'dip',
+    label: 'Sudden dip',
+    length,
+    heading: constant(st.heading),
+    pitch: (u) => keys(u, [
+      [0, st.pitch],
+      [0.22, -depth],
+      [0.5, -depth * 0.2],
+      [0.72, depth * 0.75],
+      [1, st.pitch],
+    ]),
+    roll: constant(0),
+    side: constant(0),
+    stairs: false,
+    suspended: true,
+    obstacles: 'light',
+    lanes: ['hold', 'merge', 'split'],
+  };
+}
+
 /** Twisting staircase: rolling side to side while snaking, rails staggered in height. */
 export function twist(st: GeomStart, length: number, angle: number, rollAmp: number): GeomProgram {
   const heading = (u: number) => st.heading + angle * Math.sin(TAU * u) * 0.5 * (1 - Math.cos(TAU * u)) * 0.5;

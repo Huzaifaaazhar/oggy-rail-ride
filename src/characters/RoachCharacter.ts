@@ -78,6 +78,22 @@ const clips: Record<string, ClipFn<RoachParams>> = {
     P.f({ wide: 0.6, mouthOpen: 0.3 });
   },
 
+  /** Victory dance when the cat crashes: hopping, arms pumping, wings buzzing. */
+  celebrate: (P, t, a) => {
+    const hop = Math.abs(Math.sin(t * 7));
+    P.p('pelvis', 0, hop * 0.12, 0);
+    P.r('body', -0.15, Math.sin(t * 3.5) * 0.6, 0);
+    P.r('head', -0.3, 0, Math.sin(t * 7) * 0.15);
+    P.r('shoulderL', -2.8 + Math.sin(t * 14) * 0.3, 0, 0.5);
+    P.r('shoulderR', -2.8 - Math.sin(t * 14) * 0.3, 0, -0.5);
+    P.r('elbowL', -0.5, 0, 0);
+    P.r('elbowR', -0.5, 0, 0);
+    P.r('wingL', 0, 0.5 + Math.sin(t * 40) * 0.2, 0);
+    P.r('wingR', 0, -0.5 - Math.sin(t * 40) * 0.2, 0);
+    P.feet(0.08, a.ankle + hop * 0.1, 0, -0.08, a.ankle + (1 - hop) * 0.1, 0);
+    P.f({ mouthOpen: 0.85, smile: 1, squint: 0.8, teeth: 0.7, browRaise: 0.6 });
+  },
+
   /* ----------------------------------------------------------- one-shots */
   look: (P, _t, _a, p) => {
     const k = bump(p) > 0.5 ? 1 : bump(p) * 2;

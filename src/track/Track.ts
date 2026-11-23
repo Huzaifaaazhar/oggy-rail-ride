@@ -3,6 +3,7 @@ import { clamp01, makeRng, Rng, TAU, wrapAngle } from '../util/math';
 import {
   circle,
   corkscrew,
+  dip,
   drop,
   GeomProgram,
   GeomStart,
@@ -118,6 +119,8 @@ export class Track {
   private lanes: LaneState = { w: STANDARD_SPACING, z: 0, rank: [0, 1, 2] };
   private lastKind: GeomKind | null = null;
   private pending: GeomKind | null = null;
+  /** planned combo chain (later pieces of a dramatic sequence) */
+  private chain: GeomKind[] = [];
   private sinceSpecial = 0;
 
   private tmpF = new THREE.Vector3();
@@ -281,9 +284,12 @@ export class Track {
       case 'straight':
         return straight(st, r.range(40, 85));
       case 'slope': {
-        const opts = [-0.24, -0.1, 0, 0.14, 0.26, 0.38].filter((x) => Math.abs(x - this.p) > 0.08);
-        const target = r.weighted(opts.map((x) => [x, x > 0 ? 1.6 : x === 0 ? 1.2 : 0.8] as const));
-        return slope(st, r.range(45, 80), target);
+        const all = [-0.24, -0.1, 0, 0.14, 0.26, 0.38, ...(d > 0.25 ? [0.52] : [])];
+        const opts = all.filter((x) => Math.abs(x - this.p) > 0.08);
+        const target = r.weighted(opts.map((x) => [x, x > 0.45 ? 0.9 * d + 0.3 : x > 0 ? 1.6 : x === 0 ? 1.2 : 0.8] as const));
+        const g = slope(st, r.range(45, 80), target);
+        if (target > 0.45) g.label = 'Steep climb';
+        return g;
       }
       case 'wave':
         return wave(st, r.range(110, 150), r.range(0.13, 0.2), r.int(2, 3));
@@ -305,13 +311,25 @@ export class Track {
       }
       case 'drop':
         return drop(st, r.range(90, 115), r.range(0.8, 1.15));
+      case 'dip':
+        return dip(st, r.range(48, 62), r.range(0.45, 0.6 + 0.2 * d));
       case 'twist':
         return twist(st, r.range(110, 150), r.sign() * 0.35, r.range(0.5, 0.8));
     }
   }
 
-  private static NEEDS_LEVEL: GeomKind[] = ['loop', 'helix', 'circle', 'drop'];
-  private static SPECIAL: GeomKind[] = ['loop', 'helix', 'circle', 'drop', 'corkscrew', 'twist', 'sharpTurn'];
+  private static NEEDS_LEVEL: GeomKind[] = ['loop', 'helix', 'circle', 'drop', 'dip'];
+  /** Dramatic multi-piece sequences unlocked as difficulty rises. */
+  private static COMBOS: GeomKind[][] = [
+    ['drop', 'loop'],
+    ['helix', 'drop'],
+    ['corkscrew', 'sharpTurn'],
+    ['loop', 'corkscrew'],
+    ['dip', 'dip', 'twist'],
+    ['circle', 'drop', 'loop'],
+    ['sharpTurn', 'corkscrew', 'dip'],
+  ];
+  private static SPECIAL: GeomKind[] = ['loop', 'helix', 'circle', 'drop', 'corkscrew', 'twist', 'sharpTurn', 'dip'];
 
   /** Quick coarse simulation to keep the track inside the house. */
   private fits(g: GeomProgram) {
@@ -373,7 +391,14 @@ export class Track {
       ['corkscrew', (0.45 + 1.4 * d) * specialBoost],
       ['drop', (0.5 + 1.0 * d) * specialBoost],
       ['twist', (0.35 + 1.0 * d) * specialBoost],
+      ['dip', 0.6 + 1.0 * d],
     ];
+    // past the warm-up, sometimes string specials together into a set piece
+    if (d > 0.3 && !this.chain.length && r.chance(0.12 + 0.25 * d)) {
+      const combo = r.pick(Track.COMBOS);
+      this.chain = combo.slice(1);
+      return combo[0];
+    }
     return r.weighted(table.filter(([k]) => k !== this.lastKind || k === 'slope' || k === 'turn'));
   }
 
@@ -402,7 +427,7 @@ export class Track {
     if (idx === 1) return { geom: slope(st, 60, 0.16), lane: 'hold' };
 
     for (let attempt = 0; attempt < 24; attempt++) {
-      let kind = this.pending ?? this.pickKind();
+      let kind = this.pending ?? (this.chain.length && !this.forced ? this.chain.shift()! : this.pickKind());
       this.pending = null;
       if (Track.NEEDS_LEVEL.includes(kind) && Math.abs(this.p) > 0.02) {
         // level out first, keep the special for the next piece

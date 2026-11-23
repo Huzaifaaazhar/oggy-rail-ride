@@ -21,7 +21,7 @@ export class ChaseCamera {
   private shake = 0;
   private fovKick = 0;
   private initialised = false;
-  mode: 'chase' | 'showcase' = 'showcase';
+  mode: 'chase' | 'showcase' | 'crash' = 'showcase';
   private showT = 0;
   private blend = 0; // 0 = showcase, 1 = chase
 
@@ -49,6 +49,19 @@ export class ChaseCamera {
   private side = new THREE.Vector3();
 
   update(dt: number, cam: THREE.PerspectiveCamera, track: Track, p: PlayerController) {
+    if (this.mode === 'crash') {
+      // hold position and watch the tumble
+      this.look.lerp(p.position, damp(6, dt));
+      cam.position.copy(this.pos);
+      if (this.shake > 0.001) {
+        cam.position.x += (Math.random() - 0.5) * this.shake;
+        cam.position.y += (Math.random() - 0.5) * this.shake;
+        this.shake *= Math.exp(-dt * 6);
+      }
+      cam.up.copy(this.up);
+      cam.lookAt(this.look);
+      return;
+    }
     this.blend = clamp(this.blend + (this.mode === 'chase' ? dt * 1.1 : -dt * 1.5), 0, 1);
     const bl = smootherstep(this.blend);
 

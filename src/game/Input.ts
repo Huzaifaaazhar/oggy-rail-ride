@@ -61,6 +61,7 @@ export class Input {
         this.push('pause');
         break;
       case 'Enter':
+      case 'KeyR':
         this.push('start');
         break;
     }

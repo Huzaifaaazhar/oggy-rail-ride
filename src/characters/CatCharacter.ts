@@ -122,6 +122,29 @@ const clips: Record<string, ClipFn<CatParams>> = {
     P.f({ dizzy: 1, mouthOpen: 0.35, smile: -0.4, tongue: 0.7 });
   },
 
+  /** Crash: splat flat against the obstacle, then flail while tumbling off the rail. */
+  crash: (P, t) => {
+    const splat = Math.max(0, 1 - t / 0.35);
+    const fl = Math.min(1, Math.max(0, (t - 0.3) / 0.2));
+    const w = Math.sin(t * 22);
+    P.s('mover', 0.35 * splat, -0.45 * splat, -0.3 * splat);
+    P.r('pelvis', -0.3 * fl, 0, 0);
+    P.r('spine', -0.2 * fl, 0, w * 0.15 * fl);
+    P.r('head', -0.3 * fl, w * 0.3 * fl, 0);
+    P.r('shoulderL', (-1.2 - 2.2 * splat) * (1 - fl) + (-t * 18) * fl, 0, 1.4);
+    P.r('shoulderR', (-1.2 - 2.2 * splat) * (1 - fl) + (-t * 18 + 2) * fl, 0, -1.4);
+    P.r('elbowL', -0.4, 0, 0);
+    P.r('elbowR', -0.4, 0, 0);
+    P.r('thighL', (-1.2 + w * 0.8) * fl, 0, 0.4 * fl);
+    P.r('thighR', (-1.2 - w * 0.8) * fl, 0, -0.4 * fl);
+    P.r('shinL', 0.8 * fl, 0, 0);
+    P.r('shinR', 0.8 * fl, 0, 0);
+    P.r('tail0', 1.2 * fl, w * 0.6, 0);
+    P.r('earL', -0.8, 0, -0.3);
+    P.r('earR', -0.8, 0, 0.3);
+    P.f({ blink: splat, dizzy: splat > 0.2 ? 1 : 0, mouthOpen: 0.95 * fl + 0.4 * splat, teeth: 0.8, wide: fl, browRaise: fl, browSad: fl * 0.8, smile: -0.8 });
+  },
+
   /* ---------------------------------------------------------- one-shots */
 
   hop: (P, _t, a, p) => {
@@ -233,7 +256,7 @@ const additive: ClipFn<CatParams>[] = [
 const tmpL = new THREE.Vector3();
 const tmpR = new THREE.Vector3();
 
-export type CatState = 'ride' | 'air' | 'slide' | 'stumble' | 'wipeout';
+export type CatState = 'ride' | 'air' | 'slide' | 'stumble' | 'wipeout' | 'crash';
 
 /** Drives a CatModel from gameplay state: state machine, IK, face, secondary motion. */
 export class CatCharacter {
@@ -266,7 +289,7 @@ export class CatCharacter {
   }
 
   setState(s: CatState) {
-    const fades: Record<CatState, number> = { ride: 0.18, air: 0.1, slide: 0.12, stumble: 0.1, wipeout: 0.3 };
+    const fades: Record<CatState, number> = { ride: 0.18, air: 0.1, slide: 0.12, stumble: 0.1, wipeout: 0.3, crash: 0.04 };
     this.animator.setBase(s, fades[s]);
   }
 

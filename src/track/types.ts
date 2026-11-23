@@ -29,6 +29,7 @@ export type GeomKind =
   | 'loop'
   | 'corkscrew'
   | 'drop'
+  | 'dip'
   | 'twist';
 
 export type LaneKind = 'hold' | 'merge' | 'split' | 'widePulse' | 'staggerPulse' | 'cross';
