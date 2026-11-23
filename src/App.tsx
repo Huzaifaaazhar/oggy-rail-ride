@@ -32,7 +32,8 @@ function GameApp() {
   const game = useMemo(() => new Game(opts), [opts]);
 
   useEffect(() => {
-    (window as unknown as { __game: Game }).__game = game;
+    (window as unknown as { __game: Game; __audio: typeof audio }).__game = game;
+    (window as unknown as { __audio: typeof audio }).__audio = audio;
     game.input.attach();
     // browsers only allow audio after a user gesture
     const unlock = () => {

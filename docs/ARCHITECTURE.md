@@ -145,8 +145,28 @@ set forward to a clear gap and re-runs the fairness rule.
 The roaches' distance is the player's distance plus a gap clamped to at least
 6.5 m. "Never caught" is a structural invariant, not tuning.
 
-## Known follow-ups (Part 3 and later)
-- Audio, missions, more power-ups and persistence beyond the best distance.
+# ADR-005: Synthesized audio, director-driven set pieces, local profile
+
+**Status:** Accepted (Part 3)
+
+- **Audio** (`audio/AudioEngine.ts`) builds every sound from oscillators,
+  noise and filters on a Web Audio graph (music, effects and ambience buses
+  into a compressor). The music is an original four-bar progression and motif
+  played by a look-ahead sequencer, and the arrangement grows with speed
+  level. There are no audio files to license or download, and it starts on
+  the first user gesture.
+- **Signature moments** (`game/Director.ts`) are short scripted beats. Each
+  one goes through the same fairness-checked placement and squad gap rules
+  as normal play, so a set piece can't create an impossible row or a catch.
+  The lever moment doesn't edit the track: it times Skitter's gesture to a
+  split or crossing that was already generated.
+- **Profile** (`meta/profile.ts`) is a zustand store saved to localStorage:
+  bank, history, achievements, cosmetics, daily challenge and settings.
+  Achievements are evaluated from per-run tallies when a run ends. The daily
+  challenge is a hash of the date, which gives a goal and a track seed.
+
+## Known follow-ups
+- Cloud save / leaderboards (the profile is local to the browser).
 - Move the remaining per-chunk work (rail sweeps) into the same time-sliced path.
 - Level-of-detail for spindles on low-end mobile GPUs.
 - Swap in artist-made character models once assets are available.

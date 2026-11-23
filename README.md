@@ -140,6 +140,61 @@ behind a small rig interface (joint names plus face parameters). Licensed or
 artist-made models (glTF with a skeleton and blend shapes) can replace them by
 mapping their bones to the same joint names. The game logic doesn't change.
 
+## The full experience (Part 3)
+
+- **Main menu:**
+  - start the chase, or the **daily challenge** (a seeded staircase everyone
+    shares, with a coin reward)
+  - **Characters:** live 3D preview of each cast member, plus Biscuit's
+    wardrobe
+  - **High scores:** the top 10 runs and lifetime stats
+  - **Achievements:** 14 to unlock, each with a coin reward
+  - **Settings:** music and effects volume, mute, graphics Auto/High/Low,
+    camera tilt Full/Gentle, reset progress
+- **During a run:** distance, room name, km/h, speed level, coins, the chase
+  meter and pause. The pause menu has resume, restart, settings and quit to
+  menu. The results card shows the blamed object, distance, coins, best,
+  banked coins, new achievements and daily status, then Ride again or Main
+  menu.
+- **Progression:** a persistent coin bank, best distance, run history,
+  achievements and a daily challenge. Cosmetics (coat shades, collars,
+  slipper trails) are bought with coins and never change Biscuit's design.
+- **Roller-coaster feel:** the camera follows most of the track's bank (full
+  or gentle), leans into turns and hops, turns over through loops, widens on
+  steep drops and rumbles at speed. 3D wind streaks and drifting dust scale
+  with speed. New set pieces: the **giant loop** (you exit a floor higher),
+  the **giant spiral** (three turns round a newel column) and **stacked
+  rails** that step vertically. Fast combos chain drops, loops, corkscrews
+  and dips.
+- **House:** grand hallway, living room, kitchen, bedroom, indoor garden,
+  library, sky balcony and rooftop flow into each other as continuous rooms
+  on rising floors. Higher up, *impossible staircases* appear more and more
+  often: floating stair fragments, upside-down rooms overhead and doors
+  standing in mid-air.
+- **Signature moments** (every 35–55 s, never taking control away):
+  - the roaches line up and laugh
+  - Skitter pulls a lever as the rails split, cross or stack
+  - Chomp drops a giant cooking pot
+  - Twig sends a giant ball of yarn rolling down
+  - follow-the-leader hopping with a coin trail
+  - a **tea tray** to surf: faster, smashing through obstacles
+  - a slow-motion near-capture before they escape again
+- **Audio:** everything is synthesized live with Web Audio. There are no
+  recordings.
+  - an original chase score that adds layers and tempo with speed level,
+    plus a calmer menu theme
+  - wind and rail-grind that follow speed
+  - room ambience, with birds outdoors
+  - coins that rise in pitch, jumps, slides and hops
+  - impacts by material (metal clang, porcelain smash, wood knock, soft
+    poof) and cartoon crash stingers with a sad trombone
+  - the cat's yowl and angry growl, a different laugh for each roach, and a
+    raspberry tease
+- **Mobile:** swipes fire mid-gesture (no waiting for release), chain within
+  one touch and block page scrolling while playing. Phones and low-core
+  devices get low graphics automatically: 1× resolution, smaller shadows, no
+  fur shells.
+
 ## Tests
 
 - `npm test` runs the vitest suite:
@@ -151,6 +206,15 @@ mapping their bones to the same joint names. The game logic doesn't change.
   - jump and slide heights, and the buffered jump
   - stumble, crash and tumble
   - mesher topology
+- `node scripts/e2e3.cjs` runs the Part 3 browser checks:
+  - menu → settings (persisted) → start (audio starts) → pause → quit →
+    crash → results (history and coins saved) → high scores → daily
+  - every signature moment
+  - the tea-tray ride
+  - phone swipes (rail switch, jump, slide)
+  - never caught at top speed with forced near-captures
+  - frame CPU, memory and scene-size stability over about 6 km
+  - zero console errors
 - `node scripts/e2e.cjs` (with `npm run dev` running) runs browser checks:
   - a long autopilot run: always on the rails, roaches always ahead, coins,
     speed and interference
