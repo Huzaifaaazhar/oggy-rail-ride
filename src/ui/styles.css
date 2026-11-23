@@ -1,0 +1,7 @@
+html, body, #root { margin: 0; height: 100%; overflow: hidden; background: #2b1a10; }
+.app { position: fixed; inset: 0; }
+.scene { position: absolute; inset: 0; touch-action: none; }
+.hud { position: absolute; inset: 0; pointer-events: none; font-family: Nunito, system-ui, sans-serif; }
+.plaque { position: absolute; left: 16px; top: 16px; font-family: 'Lilita One', sans-serif; font-size: 32px; color: #fff3da; }
+.debug { position: absolute; right: 16px; top: 16px; color: #fff; background: rgba(0,0,0,.5); padding: 4px 8px; }
+.cta { pointer-events: auto; position: absolute; left: 50%; bottom: 10%; transform: translateX(-50%); font: 24px 'Lilita One'; padding: 14px 28px; }
