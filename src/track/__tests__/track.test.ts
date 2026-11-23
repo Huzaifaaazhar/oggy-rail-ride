@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { Track, TrackFrame } from '../Track';
 import { DS, GeomKind } from '../types';
 
-const ALL: GeomKind[] = ['straight', 'slope', 'wave', 'turn', 'scurve', 'sharpTurn', 'circle', 'helix', 'loop', 'corkscrew', 'drop', 'dip', 'twist'];
+const ALL: GeomKind[] = ['straight', 'slope', 'wave', 'turn', 'scurve', 'sharpTurn', 'circle', 'helix', 'loop', 'corkscrew', 'drop', 'dip', 'twist', 'giantLoop', 'giantSpiral'];
 
 describe('Track', () => {
   for (const seed of [1, 7, 42, 1234, 98765]) {
@@ -52,7 +52,7 @@ describe('Track', () => {
       });
     }
     for (const k of ALL) expect(seen.has(k), k).toBe(true);
-    for (const k of ['merge', 'split', 'widePulse', 'staggerPulse', 'cross']) expect(lanes.has(k), k).toBe(true);
+    for (const k of ['merge', 'split', 'widePulse', 'staggerPulse', 'stackPulse', 'cross']) expect(lanes.has(k), k).toBe(true);
   });
 
   it('keeps rider clearance between rails (no rail passes through a rider)', () => {
@@ -70,6 +70,21 @@ describe('Track', () => {
           const inside = Math.abs(dx) < 0.5 && dy > 0.1 && dy < 2.4;
           expect(inside).toBe(false);
         }
+    }
+  });
+
+  it('giant loops exit a floor higher', () => {
+    const t = new Track({ seed: 6, forced: ['giantLoop'] });
+    t.ensure(4000);
+    const f = new TrackFrame();
+    const g = new TrackFrame();
+    const loops = t.pieces.filter((p) => p.geom === 'giantLoop');
+    expect(loops.length).toBeGreaterThan(2);
+    for (const l of loops) {
+      t.frameAt(l.s0, f);
+      t.frameAt(l.s1, g);
+      expect(g.pos.y - f.pos.y).toBeGreaterThan(8);
+      expect(g.up.y).toBeGreaterThan(0.99);
     }
   });
 

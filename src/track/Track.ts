@@ -5,6 +5,8 @@ import {
   corkscrew,
   dip,
   drop,
+  giantLoop,
+  giantSpiral,
   GeomProgram,
   GeomStart,
   helix,
@@ -311,6 +313,10 @@ export class Track {
       }
       case 'drop':
         return drop(st, r.range(90, 115), r.range(0.8, 1.15));
+      case 'giantLoop':
+        return giantLoop(st, r.range(240, 270), (this.pos.x > 0 ? -1 : 1) * 18, r.range(0.6, 0.75));
+      case 'giantSpiral':
+        return giantSpiral(st, r.range(26, 30), towardCentre());
       case 'dip':
         return dip(st, r.range(48, 62), r.range(0.45, 0.6 + 0.2 * d));
       case 'twist':
@@ -318,7 +324,7 @@ export class Track {
     }
   }
 
-  private static NEEDS_LEVEL: GeomKind[] = ['loop', 'helix', 'circle', 'drop', 'dip'];
+  private static NEEDS_LEVEL: GeomKind[] = ['loop', 'helix', 'circle', 'drop', 'dip', 'giantLoop', 'giantSpiral'];
   /** Dramatic multi-piece sequences unlocked as difficulty rises. */
   private static COMBOS: GeomKind[][] = [
     ['drop', 'loop'],
@@ -328,8 +334,11 @@ export class Track {
     ['dip', 'dip', 'twist'],
     ['circle', 'drop', 'loop'],
     ['sharpTurn', 'corkscrew', 'dip'],
+    ['drop', 'giantLoop'],
+    ['giantSpiral', 'drop', 'corkscrew'],
+    ['dip', 'loop', 'dip'],
   ];
-  private static SPECIAL: GeomKind[] = ['loop', 'helix', 'circle', 'drop', 'corkscrew', 'twist', 'sharpTurn', 'dip'];
+  private static SPECIAL: GeomKind[] = ['loop', 'helix', 'circle', 'drop', 'corkscrew', 'twist', 'sharpTurn', 'dip', 'giantLoop', 'giantSpiral'];
 
   /** Quick coarse simulation to keep the track inside the house. */
   private fits(g: GeomProgram) {
@@ -392,6 +401,8 @@ export class Track {
       ['drop', (0.5 + 1.0 * d) * specialBoost],
       ['twist', (0.35 + 1.0 * d) * specialBoost],
       ['dip', 0.6 + 1.0 * d],
+      ['giantLoop', d > 0.2 ? (0.3 + 0.9 * d) * specialBoost : 0],
+      ['giantSpiral', d > 0.25 ? (0.25 + 0.6 * d) * specialBoost : 0],
     ];
     // past the warm-up, sometimes string specials together into a set piece
     if (d > 0.3 && !this.chain.length && r.chance(0.12 + 0.25 * d)) {
@@ -414,6 +425,7 @@ export class Track {
       if (k === 'split' && merged) opts.push([k, 5]);
       if (k === 'widePulse' && !merged) opts.push([k, 1.3]);
       if (k === 'staggerPulse' && !merged) opts.push([k, 1.0]);
+      if (k === 'stackPulse' && !merged) opts.push([k, 0.9 + this.difficulty()]);
       if (k === 'cross' && !merged && l.z === 0) opts.push([k, 1.4]);
     }
     if (!opts.length) return 'hold';
@@ -579,7 +591,7 @@ export class Track {
       lanesEnd: lp.end,
       obstacles: geom.obstacles,
     });
-    if (geom.kind === 'helix' && helixN > 0) {
+    if ((geom.kind === 'helix' || geom.kind === 'giantSpiral') && helixN > 0) {
       const radius = geom.length * 0.88 / (TAU * (geom.helix?.turns ?? 1));
       this.features.push({
         kind: 'column',

@@ -61,8 +61,8 @@ function withBank(heading: (u: number) => number, length: number, scale: number)
 }
 
 const constant = (v: number) => () => v;
-const ALL_LANES: LaneKind[] = ['hold', 'merge', 'split', 'widePulse', 'staggerPulse', 'cross'];
-const SAFE_LANES: LaneKind[] = ['hold', 'merge', 'split', 'widePulse', 'staggerPulse'];
+const ALL_LANES: LaneKind[] = ['hold', 'merge', 'split', 'widePulse', 'staggerPulse', 'stackPulse', 'cross'];
+const SAFE_LANES: LaneKind[] = ['hold', 'merge', 'split', 'widePulse', 'staggerPulse', 'stackPulse'];
 
 export function straight(st: GeomStart, length: number): GeomProgram {
   return {
@@ -256,6 +256,38 @@ export function drop(st: GeomStart, length: number, depth: number): GeomProgram 
   };
 }
 
+/** A huge loop that climbs while inverted, so the exit is a floor higher. */
+export function giantLoop(st: GeomStart, length: number, sideStep: number, climb: number): GeomProgram {
+  return {
+    kind: 'giantLoop',
+    label: 'Giant loop',
+    length,
+    heading: constant(st.heading),
+    // loop over the first 72 %, then a steep kick up to the next floor
+    pitch: (u) => (u < 0.72 ? st.pitch + TAU * sEase(u / 0.72) : st.pitch + climb * bump((u - 0.72) / 0.28)),
+    roll: constant(0),
+    side: (u) => sideStep * smootherstep(Math.min(1, u / 0.72)),
+    stairs: false,
+    suspended: true,
+    obstacles: 'none',
+    lanes: ['hold'],
+  };
+}
+
+/** Three-turn giant spiral around a newel column. */
+export function giantSpiral(st: GeomStart, radius: number, dir: number): GeomProgram {
+  const g = helix(st, radius, 3, dir);
+  g.kind = 'giantSpiral';
+  g.label = 'Giant spiral';
+  g.pitch = (u) => keys(u, [
+    [0, st.pitch],
+    [0.08, 0.2],
+    [0.92, 0.2],
+    [1, st.pitch],
+  ]);
+  return g;
+}
+
 /** Sudden dip: a short, sharp plunge and kick back up. */
 export function dip(st: GeomStart, length: number, depth: number): GeomProgram {
   return {
@@ -330,6 +362,15 @@ export function laneProgram(kind: LaneKind, s: LaneState): LaneProgram {
         kind,
         offsets: (u, out) => writeLayout(lerp(s.w, WIDE_SPACING, plateau(u)), s.z * (1 - plateau(u)), rank, out),
         balustrade: balOn,
+        crossing: () => false,
+        end: { w: s.w, z: 0, rank: [...rank] as LaneState['rank'] },
+      };
+    case 'stackPulse':
+      // rails step up like a staircase cross-section: stacked levels, hop diagonally
+      return {
+        kind,
+        offsets: (u, out) => writeLayout(lerp(s.w, 2.0, plateau(u)), 3.1 * plateau(u), rank, out),
+        balustrade: (u) => 1 - 0.7 * plateau(u),
         crossing: () => false,
         end: { w: s.w, z: 0, rank: [...rank] as LaneState['rank'] },
       };

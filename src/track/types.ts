@@ -30,9 +30,11 @@ export type GeomKind =
   | 'corkscrew'
   | 'drop'
   | 'dip'
+  | 'giantLoop'
+  | 'giantSpiral'
   | 'twist';
 
-export type LaneKind = 'hold' | 'merge' | 'split' | 'widePulse' | 'staggerPulse' | 'cross';
+export type LaneKind = 'hold' | 'merge' | 'split' | 'widePulse' | 'staggerPulse' | 'stackPulse' | 'cross';
 
 /** Sample flags */
 export const F_STAIRS = 1;
