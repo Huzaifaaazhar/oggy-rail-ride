@@ -344,21 +344,32 @@ export class CatCharacter {
     // face
     const f = pose.face;
     for (let i = 0; i < m.eyes.length; i++) m.eyes[i].update(f, this.time, i === 0 ? 1 : -1);
-    m.mouth.update(f);
     this.flush = lerp(this.flush, clamp(f.flush, 0, 1), damp(6, dt));
-    m.blushMat.opacity = clamp(this.flush * 0.75 + Math.max(0, f.smile - 0.6) * 0.5, 0, 0.8);
-    m.headFur.emissive.setRGB(this.flush * 0.35, 0, 0);
-    m.fur.emissive.setRGB(this.flush * 0.18, 0, 0);
+    m.blushMat.opacity = clamp(this.flush * 0.85 + Math.max(0, f.smile - 0.6) * 0.5, 0, 0.85);
+    m.fur.emissive.setRGB(this.flush * 0.05, 0, 0);
 
     // secondary motion
     m.root.updateWorldMatrix(true, true);
     const acc = this.probe.update(dt, m.root);
     m.tail.update(dt, acc);
-    m.cap.update(dt, acc);
+    m.updateLod();
   }
 
   private applyFaceToJoints(pose: Pose) {
     const f = pose.face;
+    // sculpted mouth: hinge the jaw, pull the lip corners, push the tongue
+    const open = clamp(f.mouthOpen, 0, 1);
+    const smile = clamp(f.smile, -1, 1);
+    const smirk = clamp(f.smirk, -1, 1);
+    pose.j.jaw.rx += open * 0.42 + clamp(f.teeth, 0, 1) * 0.05;
+    pose.j.mouthL.py += smile * 0.017 + smirk * 0.01 - open * 0.006;
+    pose.j.mouthR.py += smile * 0.017 - smirk * 0.01 - open * 0.006;
+    pose.j.mouthL.px += smile * 0.009 - open * 0.006;
+    pose.j.mouthR.px -= smile * 0.009 - open * 0.006;
+    pose.j.mouthL.pz -= Math.max(0, smile) * 0.006;
+    pose.j.mouthR.pz -= Math.max(0, smile) * 0.006;
+    pose.j.tongue.pz += clamp(f.tongue, 0, 1) * 0.075;
+    pose.j.tongue.py -= clamp(f.tongue, 0, 1) * 0.01;
     const angry = clamp(f.browAngry, 0, 1.3);
     const sad = clamp(f.browSad, 0, 1);
     const raise = clamp(f.browRaise, 0, 1);

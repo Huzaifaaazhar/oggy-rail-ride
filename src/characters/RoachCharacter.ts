@@ -14,6 +14,9 @@ export interface RoachParams {
   ankle: number;
   tuck: number;
   swag: number;
+  /** 0 Skitter (cocky), 1 Chomp (heavy), 2 Twig (elegant) */
+  style: number;
+  runPhase: number;
 }
 
 const sin = Math.sin;
@@ -156,6 +159,31 @@ const clips: Record<string, ClipFn<RoachParams>> = {
 };
 
 const additive: ClipFn<RoachParams>[] = [
+  // personality layer on top of every state
+  (P, t, a) => {
+    if (a.style === 0) {
+      // Skitter: cocky head bob and loose swinging arms
+      P.r('head', 0.08 * Math.sin(t * 9), 0.12 * Math.sin(t * 2.3), 0.06 * Math.sin(t * 4.5));
+      P.r('chest', 0, 0.1 * Math.sin(t * 4.5), 0);
+      P.r('antL0', 0.15 * Math.sin(t * 7), 0, 0);
+      P.r('antR0', 0.15 * Math.sin(t * 7 + 1), 0, 0);
+    } else if (a.style === 1) {
+      // Chomp: heavy side-to-side waddle with a belly jiggle
+      P.r('pelvis', 0, 0, 0.09 * Math.sin(t * 6));
+      P.r('body', 0, 0, -0.05 * Math.sin(t * 6));
+      P.s('body', 0.025 * Math.sin(t * 12), -0.03 * Math.sin(t * 12), 0.025 * Math.sin(t * 12));
+      P.r('head', -0.06, 0, 0.05 * Math.sin(t * 6 + 0.5));
+      P.r('antL0', 0.25, 0, -0.1);
+      P.r('antR0', 0.25, 0, 0.1);
+    } else {
+      // Twig: tall, upright stalk with a chin-up attitude
+      P.r('body', -0.12, 0, 0);
+      P.r('neck', -0.1, 0, 0);
+      P.r('head', -0.1, 0.08 * Math.sin(t * 1.3), 0);
+      P.r('antL1', 0.1 * Math.sin(t * 2), 0, 0);
+      P.r('antR1', 0.1 * Math.sin(t * 2 + 0.7), 0, 0);
+    }
+  },
   (P, _t, a) => {
     P.r('mover', 0, 0, a.lean * 0.25);
     P.r('head', 0, 0, -a.lean * 0.2);
@@ -186,6 +214,8 @@ export class RoachCharacter {
       ankle: this.model.dims.ankle,
       tuck: 0,
       swag: 1,
+      style: spec.id === 'skitter' ? 0 : spec.id === 'chomp' ? 1 : 2,
+      runPhase: 0,
       ...personality,
     });
     this.animator.setBase('run', 0);
@@ -210,6 +240,16 @@ export class RoachCharacter {
       pose.face.blink += Math.sin((1 - this.blinkPhase / 0.12) * Math.PI);
     }
     const f = pose.face;
+    // sculpted mouth: jaw hinge, lip corners, tongue
+    const open = clamp(f.mouthOpen, 0, 1);
+    const smile = clamp(f.smile, -1, 1);
+    const smirk = clamp(f.smirk, -1, 1);
+    pose.j.jaw.rx += open * 0.5 + clamp(f.teeth, 0, 1) * 0.06;
+    pose.j.mouthL.py += smile * 0.012 + smirk * 0.008 - open * 0.004;
+    pose.j.mouthR.py += smile * 0.012 - smirk * 0.008 - open * 0.004;
+    pose.j.mouthL.px += smile * 0.006;
+    pose.j.mouthR.px -= smile * 0.006;
+    pose.j.tongue.pz += clamp(f.tongue, 0, 1) * 0.06;
     const angry = clamp(f.browAngry, 0, 1.2);
     const sad = clamp(f.browSad, 0, 1);
     pose.j.browL.rz += angry * 0.5 - sad * 0.4;
@@ -235,10 +275,8 @@ export class RoachCharacter {
       solveLegIK(J.thighR, J.shinR, J.footR, d.l1, d.l2, tmpR, w, m.root);
     }
     for (let i = 0; i < m.eyes.length; i++) m.eyes[i].update(f, this.time, i === 0 ? 1 : -1);
-    m.mouth.update(f);
     m.root.updateWorldMatrix(true, true);
     const acc = this.probe.update(dt, m.root);
     for (const c of m.antennae) c.update(dt, acc);
-    m.accessory?.update(dt, acc);
   }
 }

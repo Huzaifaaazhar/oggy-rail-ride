@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { Game } from './game/Game';
 import { GameScene } from './game/GameScene';
 import { GeomKind } from './track/types';
+import { CharacterViewer } from './ui/CharacterViewer';
 import { Hud } from './ui/Hud';
 
 function readOptions() {
@@ -19,6 +20,11 @@ function readOptions() {
 }
 
 export function App() {
+  if (new URLSearchParams(location.search).has('viewer')) return <CharacterViewer />;
+  return <GameApp />;
+}
+
+function GameApp() {
   const opts = useMemo(readOptions, []);
   const game = useMemo(() => new Game(opts), [opts]);
 

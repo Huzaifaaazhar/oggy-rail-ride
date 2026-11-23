@@ -78,15 +78,38 @@ was explicitly ruled out by the brief.
 - Revisit: floating-origin rebasing for very long sessions (positions are
   float64 on the CPU, float32 on the GPU).
 
-# ADR-002: Procedural rigs instead of imported skinned meshes (Part 1)
+# ADR-002: Procedurally sculpted, skinned characters (revised)
 
-**Status:** Accepted for the prototype
+**Status:** Accepted, superseding the first primitive-assembly rigs
 
-The characters are hierarchical joint rigs built from smooth lathe and sphere
-surfaces, animated by procedural clips, with leg IK, a facial rig and spring
-chains. This keeps the prototype self-contained and fully posable. The rig
-interface (joint names plus `FaceState`) is the seam for swapping in
-artist-made glTF models with skeletons and blend shapes later.
+Each character is described by a serializable *sculpt spec*: blended
+signed-distance shapes, each tagged with a bone; carving shapes (eye sockets,
+mouth crease, inner ears); paint regions for colour and roughness; and weight
+overrides (jaw, lip corners). A Web Worker turns the spec into one continuous
+mesh:
+
+1. field stamping
+2. surface nets
+3. Newton projection onto the exact field
+4. Laplacian relaxation
+5. analytic normals
+6. painted vertex colour and roughness
+7. four-bone skin weights
+
+The main thread builds bones from the same spec and binds a `SkinnedMesh` with
+model-space inverse bind matrices. That means meshes can arrive after the
+character is already animating in the world.
+
+Heads are separate, finer sculpts on the same skeleton, with the seam buried in
+the neck. Faces are geometry: eye sockets, a hinged jaw, lip-corner bones, a
+tongue and teeth.
+
+A shared shader adds per-vertex roughness, rest-pose-anchored micro bump and a
+rim light. The cat adds five fur shells that drop out with distance.
+
+The rig interface (joint names plus `FaceState`) is unchanged, so gameplay code
+didn't change. It's also still the seam for swapping in artist-made glTF models
+later.
 
 # ADR-003: Zone streaming with time-sliced construction and geometry baking
 

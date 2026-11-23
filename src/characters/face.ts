@@ -52,6 +52,14 @@ function eyeTexture(iris: string, irisDark: string, pupilScale = 1) {
   ctx.beginPath();
   ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
   ctx.stroke();
+  // limbal shading and a warm caustic glow opposite the light
+  const lg = ctx.createRadialGradient(cx, cy + ry * 0.35, 0, cx, cy + ry * 0.35, rx * 0.8);
+  lg.addColorStop(0, 'rgba(255,255,200,0.35)');
+  lg.addColorStop(1, 'rgba(255,255,200,0)');
+  ctx.fillStyle = lg;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fill();
   // pupil
   ctx.fillStyle = '#0b0a10';
   ctx.beginPath();
@@ -96,8 +104,16 @@ export class CartoonEye {
       clearcoat: 1,
       clearcoatRoughness: 0.05,
     });
-    this.ball = new THREE.Mesh(new THREE.SphereGeometry(r, 40, 28), ballMat);
+    this.ball = new THREE.Mesh(new THREE.SphereGeometry(r, 48, 32), ballMat);
     this.group.add(this.ball);
+    // clear cornea bulge over the iris catches environment reflections
+    const cornea = new THREE.Mesh(
+      new THREE.SphereGeometry(r * 0.62, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.42),
+      new THREE.MeshPhysicalMaterial({ color: '#ffffff', roughness: 0.02, metalness: 0, transparent: true, opacity: 0.18, clearcoat: 1, clearcoatRoughness: 0.02, depthWrite: false }),
+    );
+    cornea.rotation.x = Math.PI / 2;
+    cornea.position.z = r * 0.82;
+    this.ball.add(cornea);
 
     const lidGeoTop = new THREE.SphereGeometry(r * 1.07, 32, 14, 0, Math.PI * 2, 0, Math.PI / 2);
     const lidGeoBottom = new THREE.SphereGeometry(r * 1.065, 32, 14, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
@@ -150,186 +166,4 @@ export class CartoonEye {
     this.spiral.visible = dz;
     if (dz) this.spiral.rotation.z = time * 9 * mirror;
   }
-}
-
-/* --------------------------------------------------------------- mouth */
-
-export interface MouthStyle {
-  lip: string;
-  inside: string;
-  tongue: string;
-  /** draw the little "ω" cat mouth when closed */
-  catLine?: boolean;
-  width?: number;
-  line?: string;
-}
-
-/**
- * Mouth drawn into a canvas that textures a curved patch of the snout.
- * Redrawn only when the expression changes noticeably.
- */
-export class MouthRig {
-  mesh: THREE.Mesh;
-  private canvas: HTMLCanvasElement;
-  private ctx: CanvasRenderingContext2D;
-  private tex: THREE.CanvasTexture;
-  private last = [NaN, NaN, NaN, NaN, NaN];
-
-  constructor(
-    radius: number,
-    private style: MouthStyle,
-    patch = { phi: 1.5, thetaStart: 0.15, theta: 1.2 },
-  ) {
-    this.canvas = document.createElement('canvas');
-    this.canvas.width = 256;
-    this.canvas.height = 160;
-    this.ctx = this.canvas.getContext('2d')!;
-    this.tex = new THREE.CanvasTexture(this.canvas);
-    this.tex.colorSpace = THREE.SRGBColorSpace;
-    this.tex.anisotropy = 4;
-    const geo = new THREE.SphereGeometry(
-      radius,
-      32,
-      20,
-      Math.PI / 2 - patch.phi / 2,
-      patch.phi,
-      Math.PI / 2 - patch.thetaStart,
-      patch.theta,
-    );
-    const mat = new THREE.MeshStandardMaterial({
-      map: this.tex,
-      transparent: true,
-      roughness: 0.55,
-      depthWrite: false,
-      polygonOffset: true,
-      polygonOffsetFactor: -2,
-    });
-    this.mesh = new THREE.Mesh(geo, mat);
-    this.mesh.renderOrder = 2;
-    // SphereGeometry's u runs from −x to +x when seen from the front; flip so the canvas reads naturally
-    this.tex.wrapS = THREE.RepeatWrapping;
-    this.tex.repeat.x = -1;
-    this.draw(0, 0, 0, 0, 0);
-  }
-
-  update(face: FaceState) {
-    const open = clamp(face.mouthOpen, 0, 1);
-    const smile = clamp(face.smile, -1, 1);
-    const teeth = clamp(face.teeth, 0, 1);
-    const tongue = clamp(face.tongue, 0, 1);
-    const smirk = clamp(face.smirk, -1, 1);
-    const vals = [open, smile, teeth, tongue, smirk];
-    let changed = false;
-    for (let i = 0; i < 5; i++) if (!(Math.abs(vals[i] - this.last[i]) < 0.025)) changed = true;
-    if (!changed) return;
-    this.last = vals;
-    this.draw(open, smile, teeth, tongue, smirk);
-  }
-
-  private draw(open: number, smile: number, teeth: number, tongue: number, smirk: number) {
-    const ctx = this.ctx;
-    const W = this.canvas.width;
-    const H = this.canvas.height;
-    ctx.clearRect(0, 0, W, H);
-    const cx = W / 2;
-    const top = H * 0.36;
-    const halfW = W * 0.25 * (this.style.width ?? 1) * (1 + open * 0.25 + Math.max(0, smile) * 0.15);
-    const lift = smile * 16;
-    const lCorner = top - lift + smirk * 10;
-    const rCorner = top - lift - smirk * 10;
-    const depth = open * H * 0.5;
-    const lineColor = this.style.line ?? '#2a1410';
-
-    if (open < 0.06) {
-      ctx.strokeStyle = lineColor;
-      ctx.lineWidth = 7;
-      ctx.lineCap = 'round';
-      if (this.style.catLine && smile > -0.2) {
-        // ω cat mouth with a philtrum
-        ctx.beginPath();
-        ctx.moveTo(cx, top - 26);
-        ctx.lineTo(cx, top);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(cx - halfW * 0.9, lCorner - 4);
-        ctx.quadraticCurveTo(cx - halfW * 0.45, top + 22 + smile * 8, cx, top);
-        ctx.quadraticCurveTo(cx + halfW * 0.45, top + 22 + smile * 8, cx + halfW * 0.9, rCorner - 4);
-        ctx.stroke();
-      } else {
-        ctx.beginPath();
-        ctx.moveTo(cx - halfW, lCorner);
-        ctx.quadraticCurveTo(cx, top + smile * 26, cx + halfW, rCorner);
-        ctx.stroke();
-      }
-      this.tex.needsUpdate = true;
-      return;
-    }
-
-    // open mouth: upper lip curve + lower lip curve
-    const upperMid = top + smile * 14 - open * 4;
-    const lowerMid = top + depth + Math.max(0, smile) * 18;
-    ctx.beginPath();
-    ctx.moveTo(cx - halfW, lCorner);
-    ctx.quadraticCurveTo(cx, upperMid, cx + halfW, rCorner);
-    ctx.quadraticCurveTo(cx + halfW * 0.6, lowerMid, cx, lowerMid);
-    ctx.quadraticCurveTo(cx - halfW * 0.6, lowerMid, cx - halfW, lCorner);
-    ctx.closePath();
-    ctx.fillStyle = this.style.inside;
-    ctx.fill();
-    ctx.save();
-    ctx.clip();
-    if (teeth > 0.2) {
-      ctx.fillStyle = '#fffdf5';
-      ctx.fillRect(cx - halfW, upperMid - 30, halfW * 2, 30 + 12 * teeth);
-      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
-      ctx.lineWidth = 2;
-      for (let k = -2; k <= 2; k++) {
-        ctx.beginPath();
-        ctx.moveTo(cx + k * halfW * 0.28, upperMid - 30);
-        ctx.lineTo(cx + k * halfW * 0.28, upperMid + 12 * teeth);
-        ctx.stroke();
-      }
-      if (teeth > 0.6) {
-        ctx.fillStyle = '#fffdf5';
-        ctx.fillRect(cx - halfW, lowerMid - 12, halfW * 2, 20);
-      }
-    }
-    if (tongue > 0.05 || open > 0.4) {
-      ctx.fillStyle = this.style.tongue;
-      ctx.beginPath();
-      ctx.ellipse(cx + smirk * 10, lowerMid + tongue * 18, halfW * 0.55, depth * 0.35 + tongue * 22, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.restore();
-    ctx.strokeStyle = lineColor;
-    ctx.lineWidth = 6;
-    ctx.lineJoin = 'round';
-    ctx.beginPath();
-    ctx.moveTo(cx - halfW, lCorner);
-    ctx.quadraticCurveTo(cx, upperMid, cx + halfW, rCorner);
-    ctx.quadraticCurveTo(cx + halfW * 0.6, lowerMid, cx, lowerMid);
-    ctx.quadraticCurveTo(cx - halfW * 0.6, lowerMid, cx - halfW, lCorner);
-    ctx.stroke();
-    if (tongue > 0.5) {
-      // tongue poking out past the lower lip
-      ctx.fillStyle = this.style.tongue;
-      ctx.beginPath();
-      ctx.ellipse(cx + smirk * 10, lowerMid + 14, halfW * 0.42, 26 * tongue, 0, 0, Math.PI);
-      ctx.fill();
-      ctx.strokeStyle = lineColor;
-      ctx.lineWidth = 4;
-      ctx.stroke();
-    }
-    this.tex.needsUpdate = true;
-  }
-}
-
-/** Brow: a soft rounded bar that tilts and lifts. */
-export function makeBrow(len: number, thick: number, mat: THREE.Material) {
-  const g = new THREE.CapsuleGeometry(thick, len, 6, 12);
-  g.rotateZ(Math.PI / 2);
-  const m = new THREE.Mesh(g, mat);
-  const pivot = new THREE.Group();
-  pivot.add(m);
-  return pivot;
 }

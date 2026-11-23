@@ -35,6 +35,7 @@ block hops, and a toast tells you when a hop isn't possible.
 | `?autopilot` | the cat plays itself (demo / automated tests) |
 | `?pieces=loop,corkscrew,helix` | force a repeating sequence of track pieces |
 | `?debug` | shows the current track section name |
+| `?viewer` | character viewer: each character on a neutral background with every animation |
 
 `window.__game` exposes the running game for scripted checks (`advance(seconds)`,
 `inspectCharacter(name)`, `god`).
@@ -54,10 +55,15 @@ block hops, and a toast tells you when a hop isn't possible.
 - **Chase camera** (`src/game/ChaseCamera.ts`): rides the spline behind the
   rider, follows banking partially, inverts through loops, shortens its
   look-ahead in tight curves and stays below rails that pass overhead.
-- **Characters** (`src/characters`): joint rigs with two-bone leg IK, eyeballs
-  with textured irises, eyelids, brows, a canvas-driven mouth rig, spring-chain
-  secondary motion (tail, nightcap, antennae, scarf), and procedural animation
-  state machines with cross-fades, additive layers and one-shot actions.
+- **Characters** (`src/characters`): sculpted, skinned meshes generated in a
+  Web Worker from signed-distance "sculpt specs" (smooth-blended shapes →
+  surface nets → projection and relaxation → painted colour/roughness → bone
+  weights). Heads are sculpted at double resolution. Faces have eye sockets,
+  eyeballs with irises, pupils, corneas and catch-lights, lids, brows, a
+  hinged jaw with lip-corner bones, tongue and teeth. The cat has layered fur
+  shells (hidden at distance). Animation uses two-bone leg IK, spring chains
+  (tail, antennae) and procedural state machines with cross-fades, additive
+  personality layers and one-shot actions.
 - **House** (`src/environment`): 320 m themed zones (grand hallway, living room,
   kitchen, indoor garden, library, sky balcony) on floors that step up as the
   staircase climbs. They include windows with light shafts, giant furniture,
@@ -77,7 +83,17 @@ decisions.
 
 ## About the characters
 
-The characters are original designs made for this project. Every model sits
+The characters are original designs made for this project:
+
+- **Biscuit**, a chubby silver-grey colour-point cat with charcoal ears and
+  tail tip, cream muzzle, belly and mitten paws, a big red nose, green eyes,
+  cheek ruffs and a long S-curved tail.
+- **Skitter**, a small, wiry, cocky orange roach with a spiky crest and
+  zig-zag antennae.
+- **Chomp**, a huge, round, sleepy olive roach with buck teeth and droopy
+  antennae.
+- **Twig**, a tall, lanky, sly teal roach with a long neck, snout and very
+  long curly antennae. Every model sits
 behind a small rig interface (joint names plus face parameters). Licensed or
 artist-made models (glTF with a skeleton and blend shapes) can replace them by
 mapping their bones to the same joint names. The game logic doesn't change.
