@@ -141,6 +141,11 @@ export class Track {
     while (this.length < s) this.appendPiece();
   }
 
+  /** World position of the last generated sample. */
+  endZ() {
+    return this.pos.z;
+  }
+
   /** Drop stored samples behind sMin. */
   prune(sMin: number) {
     const keepFrom = Math.floor(sMin / DS / CHUNK_SAMPLES);

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { CatCharacter } from '../characters/CatCharacter';
 import { Entities, EntityEvent } from '../entities/Entities';
-import { EnvironmentStreamer } from '../environment/EnvironmentStreamer';
+import { EnvironmentStreamer, ZONE_LEN } from '../environment/EnvironmentStreamer';
 import { RoachSquad, SquadEvent } from './RoachSquad';
 import { Track } from '../track/Track';
 import { CHUNK_LENGTH, GeomKind } from '../track/types';
@@ -82,6 +82,9 @@ export class Game {
     this.env = new EnvironmentStreamer(this.track);
     this.root.add(this.env.root);
     this.streamer.update(0, 4);
+    this.track.ensure(CHUNK_LENGTH * 3);
+    while (this.track.endZ() > -2 * ZONE_LEN - 100 && this.track.length < 2500) this.track.ensure(this.track.length + 60);
+    this.env.update(0, Infinity);
     this.player.reset();
     this.player.update(0, this.track, [], false);
     this.camera.snap();
@@ -146,6 +149,9 @@ export class Game {
     p.update(dt, this.track, ev, playing || p.state === 'wipeout');
     if (!playing && p.state !== 'wipeout') p.s += 9 * dt;
     this.track.ensure(p.s + CHUNK_LENGTH * 2.5);
+    // keep generating until the next rooms are fully enclosed by generated track
+    const needZ = -(this.env.zoneIndexAt(p.position.z) + 2) * ZONE_LEN - 100;
+    while (this.track.endZ() > needZ && this.track.length < p.s + 2500) this.track.ensure(this.track.length + 60);
     this.streamer.update(p.s);
     this.env.update(p.position.z);
     this.env.animate(this.time);
@@ -189,10 +195,17 @@ export class Game {
       }
     }
 
+    const piece = this.track.pieceAt(p.s);
+    if (playing && piece && piece.index !== this.lastPiece) {
+      this.lastPiece = piece.index;
+      if (['loop', 'corkscrew', 'helix', 'circle', 'drop', 'sharpTurn', 'twist'].includes(piece.geom)) hud.showToast(piece.label, 'good');
+      else if (piece.lane === 'cross') hud.showToast('Rails crossing', 'good');
+      else if (piece.lane === 'merge') hud.showToast('Rails merging', 'info');
+      else if (piece.lane === 'widePulse') hud.showToast('Rails splitting wide', 'info');
+    }
     this.hudTimer -= dt;
     if (this.hudTimer <= 0) {
       this.hudTimer = 0.1;
-      const piece = this.track.pieceAt(p.s);
       hud.set({ distance: p.distance, speed: p.speed, lives: p.lives, coins: this.coins, section: piece?.label ?? '' });
     }
   }
@@ -265,6 +278,7 @@ export class Game {
   }
 
   private lookAtRoachT = 0;
+  private lastPiece = -1;
   autopilot: Autopilot | null = null;
   /** Test hook: ignore obstacle hits. */
   god = false;

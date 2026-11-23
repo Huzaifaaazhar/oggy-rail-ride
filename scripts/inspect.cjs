@@ -13,6 +13,7 @@ const { chromium } = require('playwright');
     const [name, off, h, action] = s.split(':');
     await page.evaluate(([n, o, hh, act]) => {
       const g = window.__game;
+      if (!window.__st) { g.start(); g.god = true; window.__st = true; }
       g.inspectCharacter(n, o.split(',').map(Number), Number(hh));
       if (act) {
         const ch = n === 'cat' ? g.cat : g.squad.runners.find((r) => r.id === n).ch;

@@ -40,6 +40,7 @@ export class EnvironmentStreamer {
   private scans = new Map<number, ZoneScan>();
   private zones = new Map<number, Zone>();
   private scanned = 0;
+  private pending: { k: number; it: Generator<void, void, void> } | null = null;
   private f = new TrackFrame();
   private seed: number;
   private postGeo = P.supportPostGeometry();
@@ -105,16 +106,28 @@ export class EnvironmentStreamer {
     }
   }
 
-  update(playerZ: number) {
+  /**
+   * @param budgetMs time slice for incremental zone construction this frame
+   *                 (Infinity builds synchronously, used at run start)
+   */
+  update(playerZ: number, budgetMs = 4) {
     this.scan();
     const cur = this.zoneIndexAt(playerZ);
-    let built = 0;
-    for (let k = Math.max(0, cur - 1); k <= cur + 2 && built < 1; k++) {
-      if (this.zones.has(k)) continue;
-      const sc = this.scans.get(k);
-      if (!sc || !sc.done) continue;
-      this.buildZone(k, sc);
-      built++;
+    const t0 = performance.now();
+    while (performance.now() - t0 < budgetMs) {
+      if (!this.pending) {
+        let next = -1;
+        for (let k = Math.max(0, cur - 1); k <= cur + 2; k++) {
+          const sc = this.scans.get(k);
+          if (!this.zones.has(k) && sc && sc.done) {
+            next = k;
+            break;
+          }
+        }
+        if (next < 0) break;
+        this.pending = { k: next, it: this.buildZone(next, this.scans.get(next)!) };
+      }
+      if (this.pending.it.next().done) this.pending = null;
     }
     for (const [k, z] of this.zones) {
       if (k < cur - 1) {
@@ -146,7 +159,7 @@ export class EnvironmentStreamer {
 
   /* ------------------------------------------------------------ building */
 
-  private buildZone(k: number, sc: ZoneScan) {
+  private *buildZone(k: number, sc: ZoneScan): Generator<void, void, void> {
     const theme = this.themeFor(k);
     const rng = makeRng(this.seed * 31 + k * 977);
     const prevFloor = this.zones.get(k - 1)?.floorY;
@@ -201,6 +214,7 @@ export class EnvironmentStreamer {
         const win = P.windowUnit(24, 40, SKY(), theme.curtain);
         place(win, sx * (W - 1.5), wz, -sx * Math.PI / 2, floorY + 22);
         this.addShaft(group, sx * (W - 2), floorY + 42, wz, sx);
+        yield;
       }
     }
     if (theme.id === 'balcony') {
@@ -224,6 +238,7 @@ export class EnvironmentStreamer {
       while (z > z1 + 20) {
         const used = this.furnish(theme, rng, statics, sx, W, z, floorY, place, clearOf);
         z -= used + rng.range(6, 18);
+        yield;
       }
       // portraits high on the wall
       for (let pz = z0 - 20; pz > z1 + 20; pz -= rng.range(45, 70)) {
@@ -243,6 +258,7 @@ export class EnvironmentStreamer {
       const r = Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z) / 2;
       if (!clearOf(x, z, floorY + bb.max.y, r)) continue;
       place(prop, x, z, rng.range(0, Math.PI * 2));
+      yield;
     }
 
     // chandeliers hanging out of the fog
@@ -268,6 +284,7 @@ export class EnvironmentStreamer {
       prop.rotation.set(rng.range(-0.6, 0.6), rng.range(0, 6), rng.range(-0.6, 0.6));
       group.add(prop);
       zone.floaters.push({ obj: prop, spin: rng.range(-1, 1), bob: rng.range(0, 6), baseY: y });
+      yield;
     }
 
     // track support posts
@@ -301,7 +318,7 @@ export class EnvironmentStreamer {
     // doorway arch into the next room
     zone.arch = this.addArch(statics, sc, z1, floorY, W, rng);
 
-    this.bake(statics, group);
+    yield* this.bake(statics, group);
     this.root.add(group);
     this.zones.set(k, zone);
   }
@@ -436,12 +453,17 @@ export class EnvironmentStreamer {
   }
 
   /** Merge static meshes per material: hundreds of props → a few draw calls. */
-  private bake(statics: THREE.Group, into: THREE.Group) {
+  private *bake(statics: THREE.Group, into: THREE.Group): Generator<void, void, void> {
     statics.updateMatrixWorld(true);
     const buckets = new Map<THREE.Material, THREE.BufferGeometry[]>();
+    const meshes: THREE.Mesh[] = [];
     statics.traverse((o) => {
       const m = o as THREE.Mesh;
-      if (!m.isMesh || Array.isArray(m.material)) return;
+      if (m.isMesh && !Array.isArray(m.material)) meshes.push(m);
+    });
+    let n = 0;
+    for (const m of meshes) {
+      if (++n % 40 === 0) yield;
       let g = m.geometry.clone();
       g.applyMatrix4(m.matrixWorld);
       if (!g.index) {
@@ -454,11 +476,12 @@ export class EnvironmentStreamer {
       if (!g.getAttribute('uv')) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.getAttribute('position').count * 2), 2));
       if (!g.getAttribute('normal')) g.computeVertexNormals();
       g = g.index && g.index.array instanceof Uint16Array ? (g.setIndex(new THREE.BufferAttribute(new Uint32Array(g.index.array), 1)), g) : g;
-      const list = buckets.get(m.material) ?? [];
+      const list = buckets.get(m.material as THREE.Material) ?? [];
       list.push(g);
-      buckets.set(m.material, list);
-    });
+      buckets.set(m.material as THREE.Material, list);
+    }
     for (const [material, geos] of buckets) {
+      yield;
       const merged = mergeGeometries(geos, false);
       geos.forEach((g) => g.dispose());
       if (!merged) continue;
