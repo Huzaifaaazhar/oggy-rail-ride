@@ -85,7 +85,7 @@ decisions.
 
 The characters are original designs made for this project:
 
-- **Biscuit**, a chubby silver-grey colour-point cat with charcoal ears and
+- **Biscuit**, a chubby deep-navy colour-point cat with near-black ears and
   tail tip, cream muzzle, belly and mitten paws, a big red nose, green eyes,
   cheek ruffs and a long S-curved tail.
 - **Skitter**, a small, wiry, cocky orange roach with a spiky crest and

@@ -8,9 +8,9 @@ import type { SculptSpec, V3 } from '../sculpt/types';
  * y = 0, facing +z, +x is the cat's left.
  */
 export const CAT = {
-  fur: '#939dab',
-  furDark: '#6e7886',
-  point: '#2a2d34',
+  fur: '#1d3263',
+  furDark: '#14244a',
+  point: '#121828',
   cream: '#f3ece1',
   pink: '#de97a3',
   nose: '#c8221f',
@@ -65,7 +65,7 @@ function bones(b: SpecBuilder) {
 /** Head and face: sculpted at twice the body resolution so the mouth crease, lids and ears stay crisp. */
 export function catHeadSpec(): SculptSpec {
   const C = CAT;
-  const b = new SpecBuilder('cat-head-v7', [-0.56, 1.1, -0.38], [0.56, 1.98, 0.56], 0.0062, C.fur, 0.9);
+  const b = new SpecBuilder('cat-head-v9', [-0.56, 1.1, -0.38], [0.56, 1.98, 0.56], 0.0062, C.fur, 0.9);
   b.spec.noise = { amp: 0.05, freq: 30 };
   b.spec.relax = 2;
   bones(b);
@@ -95,7 +95,7 @@ export function catHeadSpec(): SculptSpec {
 /** Body, limbs and tail. The head is a separate fine mesh whose seam sits inside the neck. */
 export function catSpec(): SculptSpec {
   const C = CAT;
-  const b = new SpecBuilder('cat-body-v6', [-0.82, -0.02, -1.05], [0.82, 1.36, 0.62], 0.0105, C.fur, 0.9);
+  const b = new SpecBuilder('cat-body-v8', [-0.82, -0.02, -1.05], [0.82, 1.36, 0.62], 0.0105, C.fur, 0.9);
   b.spec.noise = { amp: 0.06, freq: 26 };
   b.spec.relax = 2;
   bones(b);
@@ -165,7 +165,7 @@ function headCarveAndPaint(b: SpecBuilder) {
     .paint({ type: 'ell', c: [0, 1.04, 0.16], r: [0.14, 0.13, 0.1] }, C.cream, 0.03)
     .paint({ type: 'ell', c: [0, 1.255, 0.33], r: [0.175, 0.092, 0.13] }, C.cream, 0.02)
     .paint({ type: 'ell', c: [0, 1.18, 0.27], r: [0.12, 0.07, 0.12] }, C.cream, 0.02);
-  for (const x of [-0.065, 0, 0.065]) b.paint({ type: 'ell', c: [x, 1.62, 0.24], r: [0.017, 0.075, 0.07], rot: [-0.5, 0, x * 2] }, '#6c7480', 0.012);
+  for (const x of [-0.065, 0, 0.065]) b.paint({ type: 'ell', c: [x, 1.62, 0.24], r: [0.017, 0.075, 0.07], rot: [-0.5, 0, x * 2] }, '#122148', 0.012);
   b.mirror((s) => {
     b.paint({ type: 'cone', a: [0, -0.06, 0], b: [0, 0.34, 0], ra: 0.17, rb: 0.04, xf: earXf(s) }, C.point, 0.02);
     b.paint({ type: 'cone', a: [0, 0.03, 0.085], b: [0, 0.27, 0.085], ra: 0.095, rb: 0.01, xf: earXf(s) }, C.pink, 0.012, { rough: 0.6 });

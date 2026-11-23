@@ -66,15 +66,15 @@ export class CatModel {
     this.root.add(this.sk.root);
     for (const b of this.sk.bones) this.rig.add(b.name, b);
 
-    this.fur = characterMaterial({ sheen: 0.9, sheenColor: '#eef3ff', bump: 0.55, bumpFreq: 140, rim: 0.22, rimColor: '#f4f0ff' }) as never;
+    this.fur = characterMaterial({ sheen: 0.5, sheenColor: '#8fa9e8', bump: 0.55, bumpFreq: 140, rim: 0.22, rimColor: '#f4f0ff' }) as never;
     this.headFur = this.fur;
     for (let i = 1; i <= FUR_SHELLS; i++) {
       const h = i / FUR_SHELLS;
-      this.shellMats.push(characterMaterial({ sheen: 0.9, sheenColor: '#eef3ff', rim: 0.2, shell: { h, offset: FUR_LENGTH * h, density: 520, fade: 7.5 } }));
+      this.shellMats.push(characterMaterial({ sheen: 0.5, sheenColor: '#8fa9e8', rim: 0.2, shell: { h, offset: FUR_LENGTH * h, density: 520, fade: 7.5 } }));
     }
 
     // ---- eyes (big, green), lids in fur colour
-    const lidMat = new THREE.MeshPhysicalMaterial({ color: CAT.fur, roughness: 0.85, sheen: 0.8, sheenColor: new THREE.Color('#eef3ff') });
+    const lidMat = new THREE.MeshPhysicalMaterial({ color: CAT.fur, roughness: 0.85, sheen: 0.8, sheenColor: new THREE.Color('#8fa9e8') });
     for (const s of [1, -1]) {
       const eye = new CartoonEye({ radius: CAT.eyeR, iris: '#7fcf45', irisDark: '#2c6a12', lidMaterial: lidMat, pupilScale: 0.95 });
       eye.group.position.set(s * CAT.eyePos[0], CAT.eyePos[1], CAT.eyePos[2]);
