@@ -366,6 +366,27 @@ function pans(width: number) {
   return g;
 }
 
+function giantPot(width: number) {
+  const g = new THREE.Group();
+  const r = Math.max(1.6, width);
+  const red = std('#c0392b', 0.25, { clearcoat: 1 });
+  const steel = std('#c8ccd2', 0.25, { metalness: 0.9 });
+  add(g, lathe([[0, 0], [r * 0.95, 0], [r, 0.15], [r, 2.8], [r * 1.04, 2.9], [0, 2.9]], 48), red, [0, 0, 0]);
+  add(g, lathe([[0, 0], [r * 1.02, 0], [r * 0.8, 0.35], [0.25, 0.6], [0, 0.6]], 48), red, [0, 2.9, 0]);
+  add(g, new THREE.SphereGeometry(0.3, 16, 12), steel, [0, 3.6, 0]);
+  for (const sx of [-1, 1]) add(g, new THREE.TorusGeometry(0.45, 0.12, 10, 24, Math.PI), steel, [sx * (r + 0.1), 2.2, 0], [0, sx > 0 ? -Math.PI / 2 : Math.PI / 2, 0]);
+  // steam swirl of vegetables peeking out
+  for (let i = 0; i < 5; i++) add(g, new THREE.SphereGeometry(0.28, 12, 10), std(['#f4a261', '#2a9d8f', '#e9c46a'][i % 3], 0.6), [Math.cos(i * 1.3) * r * 0.5, 3.0, Math.sin(i * 1.3) * r * 0.5]);
+  return g;
+}
+
+function bigYarn() {
+  const g = yarn();
+  g.scale.setScalar(3.1);
+  g.userData.roll = true;
+  return g;
+}
+
 const cache = new Map<string, THREE.Object3D>();
 
 /**
@@ -386,6 +407,8 @@ export function makeObstacle(kind: ObstacleKind, halfW = 0.6): THREE.Object3D {
       barrel: () => barrel(Math.max(0.5, halfW)),
       rugRoll: () => rugRoll(Math.max(0.6, halfW)),
       vacuum, cushion, lamp,
+      giantPot: () => giantPot(Math.max(1.6, halfW)),
+      bigYarn,
       fan: () => fan(Math.max(1.2, halfW)),
       table: () => table(Math.max(0.8, halfW)),
       pans: () => pans(Math.max(0.7, halfW)),
@@ -430,9 +453,15 @@ export function hazardMarker(): THREE.Object3D {
   return sprite;
 }
 
-/** Bonus collectibles: golden fish (+25 coins) and a coin magnet. */
-export function bonusItem(kind: 'fish' | 'magnet'): THREE.Object3D {
+/** Bonus collectibles: golden fish (+25 coins), coin magnet, tea-tray ride. */
+export function bonusItem(kind: 'fish' | 'magnet' | 'tray'): THREE.Object3D {
   const g = new THREE.Group();
+  if (kind === 'tray') {
+    g.add(teaTray());
+    const glow = new THREE.Mesh(new THREE.SphereGeometry(0.9, 20, 14), new THREE.MeshBasicMaterial({ color: '#fff2b0', transparent: true, opacity: 0.25, depthWrite: false }));
+    g.add(glow);
+    return g;
+  }
   if (kind === 'fish') {
     const gold = new THREE.MeshPhysicalMaterial({ color: '#ffcf33', metalness: 1, roughness: 0.15, emissive: '#b36b00', emissiveIntensity: 0.6, clearcoat: 1 });
     const body = new THREE.Mesh(new THREE.SphereGeometry(0.32, 24, 16), gold);
@@ -487,4 +516,20 @@ export function coinEmblemGeometry() {
   const geo = new THREE.ExtrudeGeometry(fish, { depth: 0.13, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.01, bevelSegments: 2 });
   geo.translate(0.0, 0, -0.065);
   return geo;
+}
+
+/** Silver tea tray: the cat surfs on it during a tray ride. */
+export function teaTray(): THREE.Object3D {
+  const g = new THREE.Group();
+  const silver = new THREE.MeshStandardMaterial({ color: '#e7ecef', metalness: 1, roughness: 0.18 });
+  const tray = new THREE.Mesh(lathe([[0, 0], [0.5, 0], [0.56, 0.06], [0.6, 0.1], [0.57, 0.11], [0.52, 0.04], [0, 0.04]], 40), silver);
+  tray.scale.set(1.25, 1, 0.8);
+  g.add(tray);
+  for (const sx of [-1, 1]) {
+    const h = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.025, 8, 18, Math.PI), silver);
+    h.position.set(sx * 0.76, 0.08, 0);
+    h.rotation.set(Math.PI / 2, 0, sx > 0 ? -Math.PI / 2 : Math.PI / 2);
+    g.add(h);
+  }
+  return g;
 }

@@ -5,7 +5,9 @@ export type ObstacleKind =
   // high: slide under
   | 'laundry' | 'lamp' | 'fan' | 'table' | 'pans'
   // block: change rail
-  | 'sofa' | 'chair' | 'plant' | 'cupboard' | 'fridge' | 'washer' | 'teapot' | 'vase' | 'door';
+  | 'sofa' | 'chair' | 'plant' | 'cupboard' | 'fridge' | 'washer' | 'teapot' | 'vase' | 'door'
+  // signature-moment giants
+  | 'giantPot' | 'bigYarn';
 
 export type ObstacleClass = 'low' | 'high' | 'block';
 
@@ -48,6 +50,8 @@ export const CATALOG: Record<ObstacleKind, ObstacleInfo> = {
   teapot: { cls: 'block', y0: 0, y1: 2.8, halfLen: 0.7, halfW: 0.6, blame: 'lost an argument with a teapot' },
   vase: { cls: 'block', y0: 0, y1: 3.2, halfLen: 0.55, halfW: 0.5, blame: 'knocked over the precious vase' },
   door: { cls: 'block', y0: 0, y1: 2.6, halfLen: 0.25, halfW: 0.7, blame: 'met a door that opened at the worst moment' },
+  giantPot: { cls: 'block', y0: 0, y1: 3.6, halfLen: 1.4, halfW: 1.0, blame: 'was flattened by a giant cooking pot' },
+  bigYarn: { cls: 'block', y0: 0, y1: 2.6, halfLen: 1.2, halfW: 1.1, blame: 'got rolled up in a giant ball of yarn' },
 };
 
 export const LOW_KINDS: ObstacleKind[] = ['books', 'box', 'bucket', 'pots', 'yarn', 'can'];
@@ -91,5 +95,5 @@ export interface CoinSpec {
   u: number;
   /** height above the rail top */
   h: number;
-  item?: 'fish' | 'magnet';
+  item?: 'fish' | 'magnet' | 'tray';
 }

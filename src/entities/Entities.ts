@@ -43,7 +43,9 @@ interface Coin extends CoinSpec {
 
 export type EntityEvent =
   | { type: 'coin'; pos: THREE.Vector3 }
-  | { type: 'bonus'; item: 'fish' | 'magnet' }
+  | { type: 'bonus'; item: 'fish' | 'magnet' | 'tray' }
+  | { type: 'smash'; kind: ObstacleKind }
+  | { type: 'landed'; kind: ObstacleKind; ahead: number }
   | { type: 'hit'; kind: ObstacleKind; severity: 'crash' | 'stumble' }
   | { type: 'nearMiss'; dir: number }
   | { type: 'warn'; text: string };
@@ -261,6 +263,11 @@ export class Entities {
     return o;
   }
 
+  /** Add coins/bonus items directly (signature moments). */
+  addCoins(cs: CoinSpec[]) {
+    for (const c of cs) this.addCoin(c);
+  }
+
   private addCoin(c: CoinSpec) {
     if (this.coins.length >= MAX_COINS - 1) return;
     const coin: Coin = { ...c, taken: false, t: 0, pos: new THREE.Vector3(), mesh: null };
@@ -340,7 +347,10 @@ export class Entities {
         if (o.triggered && o.yOff > 0) {
           o.prog += dt;
           o.yOff = Math.max(0, m.height - 0.5 * 26 * o.prog * o.prog);
-          if (o.yOff === 0) o.solid = true;
+          if (o.yOff === 0) {
+            o.solid = true;
+            events.push({ type: 'landed', kind: o.kind, ahead });
+          }
         }
         break;
       case 'door': {
@@ -452,10 +462,12 @@ export class Entities {
       const y0 = info.y0 + o.yOff;
       const y1 = info.y1 + o.yOff;
       if (!(top > y0 + 0.05 && bottom < y1 - 0.08)) continue;
-      if (p.invulnT > 0) continue;
+      if (p.invulnT > 0 && p.rideT <= 0) continue;
       const head = dx < halfW - 0.12 && p.switchT >= 0.92;
       o.hit = true;
-      events.push({ type: 'hit', kind: o.kind, severity: head ? 'crash' : 'stumble' });
+      // surfing a tea tray: everything gets bowled out of the way
+      if (p.rideT > 0) events.push({ type: 'smash', kind: o.kind });
+      else events.push({ type: 'hit', kind: o.kind, severity: head ? 'crash' : 'stumble' });
       o.flyT = 1.2;
       o.flyVel.copy(p.frame.fwd).multiplyScalar(p.speed * 0.6).addScaledVector(p.frame.up, 7).addScaledVector(p.frame.right, this.rng.range(-4, 4));
       o.spin.set(this.rng.range(-8, 8), 0, this.rng.range(-8, 8));
@@ -473,7 +485,7 @@ export class Entities {
         c.pos.copy(f.pos).addScaledVector(f.right, this.lat.x).addScaledVector(f.up, this.lat.y + RAIL_TOP + c.h);
         if (collide) {
           const inSweep = c.s >= s0 - 1.1 && c.s <= s1 + 1.1;
-          const magnet = this.magnetT > 0 && c.s > p.s - 2 && c.s < p.s + 16 && Math.abs(p.lateral.x - this.lat.x) < 7 && !c.item;
+          const magnet = (this.magnetT > 0 || p.rideT > 0) && c.s > p.s - 2 && c.s < p.s + 16 && Math.abs(p.lateral.x - this.lat.x) < 7 && !c.item;
           if (magnet || (inSweep && Math.abs(p.lateral.x - this.lat.x) < 0.95 && Math.abs(c.h - midH) < 1.35)) {
             c.taken = true;
             c.t = 0;

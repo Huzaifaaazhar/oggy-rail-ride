@@ -5,6 +5,9 @@ import { Game } from './game/Game';
 import { GameScene } from './game/GameScene';
 import { GeomKind } from './track/types';
 import { CharacterViewer } from './ui/CharacterViewer';
+import { audio } from './audio/AudioEngine';
+import { useProfile } from './meta/profile';
+import { useHud } from './game/store';
 import { Hud } from './ui/Hud';
 
 function readOptions() {
@@ -31,15 +34,28 @@ function GameApp() {
   useEffect(() => {
     (window as unknown as { __game: Game }).__game = game;
     game.input.attach();
-    return () => game.input.dispose();
+    // browsers only allow audio after a user gesture
+    const unlock = () => {
+      audio.unlock();
+      if (useHud.getState().phase === 'title') audio.setMusic('menu');
+    };
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
+    return () => {
+      game.input.dispose();
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
   }, [game]);
+  const quality = useProfile((s) => s.settings.quality);
+  const low = useMemo(() => game.quality() === 'low', [game, quality]);
 
   return (
     <div className="app">
       <Canvas
         className="scene"
         shadows
-        dpr={[1, 1.75]}
+        dpr={low ? 1 : [1, 1.75]}
         gl={{ antialias: true, powerPreference: 'high-performance' }}
         camera={{ fov: 60, near: 0.1, far: 1400, position: [0, 3, 8] }}
         onCreated={({ gl }) => {

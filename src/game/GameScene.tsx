@@ -46,8 +46,8 @@ export function GameScene({ game }: { game: Game }) {
         color="#fff1d6"
         intensity={2.4}
         castShadow
-        shadow-mapSize-width={2048}
-        shadow-mapSize-height={2048}
+        shadow-mapSize-width={game.quality() === 'low' ? 1024 : 2048}
+        shadow-mapSize-height={game.quality() === 'low' ? 1024 : 2048}
         shadow-camera-left={-28}
         shadow-camera-right={28}
         shadow-camera-top={28}

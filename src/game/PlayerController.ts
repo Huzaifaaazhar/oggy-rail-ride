@@ -54,6 +54,8 @@ export class PlayerController {
   sinceStumble = Infinity;
   state: RiderState = 'ride';
   distance = 0;
+  /** tea-tray ride time left (faster, smashes obstacles) */
+  rideT = 0;
   /** seconds since the crash started (failure animation clock) */
   crashT = 0;
   private queuedSwitch = 0;
@@ -91,6 +93,7 @@ export class PlayerController {
     this.state = 'ride';
     this.distance = 0;
     this.crashT = 0;
+    this.rideT = 0;
     this.queuedSwitch = 0;
     this.bufferedSwitch.dir = 0;
     this.bufferedJump = 0;
@@ -213,7 +216,7 @@ export class PlayerController {
     }
     if (playing) {
       const slopeAccel = -9.8 * Math.sin(this.frame.pitch) * 0.42;
-      const target = this.targetSpeed() * (this.stumbleT > 0 ? 0.8 : 1);
+      const target = this.targetSpeed() * (this.stumbleT > 0 ? 0.8 : 1) * (this.rideT > 0 ? 1.3 : 1);
       this.speed += (target - this.speed) * Math.min(1, 0.8 * dt) + slopeAccel * dt;
       this.speed = clamp(this.speed, 12, 62);
     } else {
@@ -224,6 +227,7 @@ export class PlayerController {
     if (playing) this.distance += ds;
     track.frameAt(this.s, this.frame);
     this.sinceStumble += dt;
+    if (this.rideT > 0) this.rideT = Math.max(0, this.rideT - dt);
 
     // buffered inputs
     if (this.bufferedSwitch.dir && this.switchT >= 1) {

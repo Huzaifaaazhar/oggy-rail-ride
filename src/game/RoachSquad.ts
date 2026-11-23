@@ -29,8 +29,9 @@ interface Runner {
   gap: number;
   /** extra gap from escapes/tricks (eases back to 0) */
   bonus: number;
-  /** temporary override of the gap target (Twig's close taunt) */
+  /** temporary override of the gap target (close taunts, line-ups) */
   closeT: number;
+  closeGap: number;
   wander: number;
   fromRail: number;
   toRail: number;
@@ -98,7 +99,7 @@ export class RoachSquad {
       const ch = new RoachCharacter(ROACHES[id], { freq: pers.freq, stride: pers.stride, bounce: pers.bounce, swag: pers.swag });
       this.root.add(ch.root);
       this.runners.push({
-        id, ch, baseGap: pers.gap, gap: pers.gap, bonus: 0, closeT: 0, wander: this.rng.range(0, 100),
+        id, ch, baseGap: pers.gap, gap: pers.gap, bonus: 0, closeT: 0, closeGap: 7, wander: this.rng.range(0, 100),
         fromRail: rails[id], toRail: rails[id], switchT: 1, switchDir: 0, height: 0, vy: 0, airborne: false, duckT: 0,
         s: 0, prevS: 0, frame: new TrackFrame(), nextHop: this.rng.range(2, 6), trickT: this.rng.range(8, 14), hiddenT: 0, pending: [],
       });
@@ -134,6 +135,54 @@ export class RoachSquad {
 
   get(id: RoachId) {
     return this.runners.find((r) => r.id === id)!;
+  }
+
+  /** Signature moment: all three line up close on separate rails and laugh. */
+  lineUp(entities: Entities) {
+    const order = [this.get('skitter'), this.get('chomp'), this.get('twig')];
+    order.forEach((r, i) => {
+      r.closeT = 2.8;
+      r.closeGap = 9 + i * 1.5;
+      const rail = railAtRank(r.frame, i - 1);
+      if (rail !== r.toRail) {
+        r.fromRail = r.toRail;
+        r.toRail = rail;
+        r.switchT = 0;
+      }
+      this.later(r, 0.4 + i * 0.15, () => r.ch.animator.play('laugh', 1.8, 0.1, 0.3));
+      this.later(r, 2.9, () => {
+        r.bonus += 18;
+        r.ch.animator.play('tease', 1.2, 0.1, 0.3);
+      });
+    });
+    void entities;
+  }
+
+  /** Signature moment: follow-the-leader rail hopping; returns the ranks they visit. */
+  conga(entities: Entities) {
+    const lead = this.get('skitter');
+    let dir = this.rng.sign();
+    for (let k = 0; k < 4; k++) {
+      for (const [i, r] of this.runners.entries()) this.later(r, k * 0.55 + i * 0.15, () => {
+        if (!this.trySwitch(r, dir, entities)) this.trySwitch(r, -dir, entities);
+      });
+      dir = -dir;
+    }
+    return lead;
+  }
+
+  /** Make a roach play a one-shot (used by the director). */
+  act(id: RoachId, anim: string, dur = 1.2) {
+    this.get(id).ch.animator.play(anim, dur, 0.1, 0.3);
+  }
+
+  /** Force the near-capture escape this frame. */
+  nearCatch() {
+    this.tension = 1;
+    for (const r of this.runners) {
+      r.closeT = 1.0;
+      r.closeGap = 7;
+    }
   }
 
   /** The cat tripped: everyone laughs and they gain some distance. */
@@ -199,7 +248,7 @@ export class RoachSquad {
       r.closeT = Math.max(0, r.closeT - dt);
       const wobble = Math.sin(r.wander) * 3.5 + Math.sin(r.wander * 2.3) * 1.5;
       let target = r.baseGap * lerp(1, 0.42, this.tension) + wobble + r.bonus;
-      if (r.closeT > 0) target = 7;
+      if (r.closeT > 0) target = r.closeGap;
       r.gap += (target - r.gap) * Math.min(1, dt * (r.closeT > 0 ? 2.5 : 0.9));
       r.gap = Math.max(MIN_GAP, r.gap);
       r.prevS = r.s;
@@ -276,7 +325,7 @@ export class RoachSquad {
 
     // near-capture → they always slip away
     const lead = Math.min(...this.runners.map((r) => r.gap));
-    if (lead < 8.5 && this.tension > 0.8) {
+    if (lead < 8.6 && this.tension > 0.8) {
       this.tension = 0.25;
       for (const r of this.runners) {
         r.bonus += 16;
@@ -394,6 +443,7 @@ export class RoachSquad {
       events.push({ type: 'trick', who: 'twig', text: 'Twig switched routes' });
     } else if (pick === 'close') {
       r.closeT = 2.4;
+      r.closeGap = 7;
       r.ch.animator.play('tease', 2.2, 0.15, 0.3);
       events.push({ type: 'trick', who: 'twig', text: 'Twig is right in front of you' });
     } else if (pick === 'vanish') {

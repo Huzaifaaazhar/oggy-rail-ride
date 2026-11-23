@@ -22,6 +22,15 @@ export class ChaseCamera {
   private fovKick = 0;
   private initialised = false;
   mode: 'chase' | 'showcase' | 'crash' = 'showcase';
+  /** share of the track roll the camera follows (settings: full/gentle) */
+  rollFollow = 0.88;
+  /** menu character preview: orbit this object instead of the rider */
+  showcaseTarget: THREE.Object3D | null = null;
+  private bank = 0;
+  private prevHeading = 0;
+  private dropFov = 0;
+  private rumbleT = 0;
+  private tv = new THREE.Vector3();
   private showT = 0;
   private blend = 0; // 0 = showcase, 1 = chase
   private crashY: number | null = null;
@@ -77,8 +86,13 @@ export class ChaseCamera {
     this.laneAt(this.fb, p, this.lane);
     // camera up keeps the base orientation (so loops invert it) but only follows
     // part of the roll, which keeps corkscrews readable
-    const rollFollow = 0.62;
-    const ang = Math.atan2(this.fb.rollSin, this.fb.rollCos) * rollFollow;
+    // dramatic banking: follow most of the track roll, plus lean into turns and hops
+    const dh = Math.atan2(Math.sin(p.frame.heading - this.prevHeading), Math.cos(p.frame.heading - this.prevHeading));
+    this.prevHeading = p.frame.heading;
+    const turnRate = dt > 0 ? dh / dt : 0;
+    const hop = p.switchT < 1 ? Math.sin(Math.PI * p.switchT) * p.switchDir * 0.12 : 0;
+    this.bank += (clamp(turnRate * 0.22, -0.35, 0.35) - hop - this.bank) * damp(4, dt);
+    const ang = Math.atan2(this.fb.rollSin, this.fb.rollCos) * this.rollFollow + this.bank * this.rollFollow;
     const c = Math.cos(ang);
     const s = Math.sin(ang);
     const camUp = this.tmp.copy(this.fb.baseUp).multiplyScalar(c).addScaledVector(this.fb.baseRight, -s);
@@ -123,20 +137,24 @@ export class ChaseCamera {
       this.showT += dt * 0.35;
       const f = p.frame;
       const a = this.showT;
-      const sx = Math.sin(a) * 4.6;
-      const sz = Math.cos(a) * 4.6 + 1.2;
+      const tgt = this.showcaseTarget;
+      const centre = tgt ? tgt.getWorldPosition(this.tv) : this.tv.copy(p.position);
+      const radius = tgt ? 3.2 : 4.6;
+      const sx = Math.sin(a) * radius;
+      const sz = Math.cos(a) * radius + 1.2;
       this.side
-        .copy(p.position)
+        .copy(centre)
         .addScaledVector(f.right, sx)
         .addScaledVector(f.fwd, sz)
-        .addScaledVector(f.up, 1.4 + Math.sin(a * 0.7) * 0.4);
+        .addScaledVector(f.up, (tgt ? 1.0 : 1.4) + Math.sin(a * 0.7) * 0.4);
       this.dPos.lerpVectors(this.side, this.dPos, bl);
-      this.side.copy(p.position).addScaledVector(f.up, 1.05);
+      this.side.copy(centre).addScaledVector(f.up, tgt ? 0.75 : 1.05);
       this.dLook.lerpVectors(this.side, this.dLook, bl);
       this.dUp.lerpVectors(f.up, this.dUp, bl).normalize();
     }
 
-    if (!this.initialised) {
+    if (!this.initialised || (this.showcaseTarget && bl < 0.01)) {
+      // previewing a moving roach: lock the orbit to it (no lag, no clipping)
       this.pos.copy(this.dPos);
       this.look.copy(this.dLook);
       this.up.copy(this.dUp);
@@ -158,7 +176,16 @@ export class ChaseCamera {
     cam.lookAt(this.look);
 
     this.fovKick *= Math.exp(-dt * 2.5);
-    const fov = lerp(48, clamp(60 + (p.speed - 20) * 0.55 + this.fovKick * 10, 58, 84), bl);
+    // surge on steep drops, squeeze on climbs
+    const pitch = p.frame.pitch;
+    this.dropFov += (clamp(-pitch * 9, -3, 9) - this.dropFov) * damp(3, dt);
+    const fov = lerp(48, clamp(60 + (p.speed - 20) * 0.55 + this.fovKick * 10 + this.dropFov, 56, 92), bl);
+    // fine rumble at speed (felt, not distracting)
+    if (bl > 0.5 && p.speed > 30 && !p.airborne) {
+      this.rumbleT += dt * 40;
+      const r = (p.speed - 30) * 0.0009;
+      cam.position.addScaledVector(this.up, Math.sin(this.rumbleT) * r);
+    }
     if (Math.abs(cam.fov - fov) > 0.01) {
       cam.fov += (fov - cam.fov) * damp(4, dt);
       cam.updateProjectionMatrix();

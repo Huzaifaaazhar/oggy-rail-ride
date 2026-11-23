@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import { checker, grass, planks, skyTexture, wallpaper } from '../util/textures';
+import { canvasTexture, checker, grass, planks, skyTexture, wallpaper } from '../util/textures';
 
-export type ThemeId = 'hallway' | 'living' | 'kitchen' | 'garden' | 'library' | 'balcony';
+export type ThemeId = 'hallway' | 'living' | 'kitchen' | 'garden' | 'library' | 'balcony' | 'bedroom' | 'rooftop' | 'impossible';
 
 export interface Theme {
   id: ThemeId;
@@ -104,8 +104,70 @@ export const THEMES: Record<ThemeId, Theme> = {
     wainscot: '#e8dcc4',
     curtain: '#3d7ea6',
   },
+  bedroom: {
+    id: 'bedroom',
+    name: 'Bedroom',
+    fog: '#e6d6ef',
+    sky: '#fff4ff',
+    ground: '#6d5a7a',
+    wallHalf: 98,
+    floor: cached('f-bedroom', () => new THREE.MeshStandardMaterial({ map: tex(planks('planks-bed', ['#c99a6b', '#bd8d5f', '#d3a676']), 12, 36), roughness: 0.55 })),
+    wall: cached('w-bedroom', () => new THREE.MeshStandardMaterial({ map: tex(wallpaper('wp-bedroom', '#5b6fb3', '#5266a8', '#f6d86b'), 8, 10), roughness: 0.85 })),
+    wainscot: '#f5ecdc',
+    curtain: '#f28f8f',
+  },
+  rooftop: {
+    id: 'rooftop',
+    name: 'Rooftop',
+    fog: '#b9dcf2',
+    sky: '#eaf6ff',
+    ground: '#7d4a37',
+    wallHalf: 104,
+    floor: cached('f-rooftop', () => new THREE.MeshStandardMaterial({ map: tex(roofTiles(), 18, 50), roughness: 0.75 })),
+    wall: cached('w-rooftop', () => new THREE.MeshStandardMaterial({ color: '#c9a27a', roughness: 0.9 })),
+    wainscot: '#8a5a44',
+    curtain: '#3d7ea6',
+  },
+  impossible: {
+    id: 'impossible',
+    name: 'Impossible staircase',
+    fog: '#cdbfe8',
+    sky: '#f4eaff',
+    ground: '#3b2f5c',
+    wallHalf: 110,
+    floor: cached('f-impossible', () => new THREE.MeshStandardMaterial({ map: tex(checker('chk-impossible', '#3b2f5c', '#e9dcff', 6), 16, 46), roughness: 0.4 })),
+    wall: cached('w-impossible', () => new THREE.MeshStandardMaterial({ map: tex(wallpaper('wp-impossible', '#a58bd8', '#9a7fcf', '#ffe38a'), 6, 8), roughness: 0.85 })),
+    wainscot: '#3b2f5c',
+    curtain: '#e9c46a',
+  },
 };
 
-export const THEME_ORDER: ThemeId[] = ['hallway', 'living', 'kitchen', 'garden', 'library', 'balcony'];
+/** Terracotta roof tiles. */
+function roofTiles() {
+  return canvasTexture('roof-tiles', 256, 256, (ctx, w, h) => {
+    ctx.fillStyle = '#8f4a33';
+    ctx.fillRect(0, 0, w, h);
+    const rows = 8;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < 9; c++) {
+        const x = c * 32 + (r % 2 ? 16 : 0) - 16;
+        const y = r * 32;
+        const g = ctx.createLinearGradient(0, y, 0, y + 32);
+        g.addColorStop(0, '#c86b47');
+        g.addColorStop(1, '#8a3f2a');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + 32, y);
+        ctx.lineTo(x + 32, y + 22);
+        ctx.quadraticCurveTo(x + 16, y + 36, x, y + 22);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+  });
+}
+
+export const THEME_ORDER: ThemeId[] = ['hallway', 'living', 'kitchen', 'bedroom', 'garden', 'library', 'balcony', 'rooftop'];
 
 export const SKY = () => skyTexture('sky-window');

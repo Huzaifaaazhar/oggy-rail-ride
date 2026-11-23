@@ -6,7 +6,12 @@ import { EnvironmentStreamer, ZONE_LEN } from '../environment/EnvironmentStreame
 import { Track } from '../track/Track';
 import { CHUNK_LENGTH, GeomKind } from '../track/types';
 import { clamp, wrapAngle } from '../util/math';
+import { audio } from '../audio/AudioEngine';
+import { teaTray } from '../entities/prefabs';
+import { useProfile } from '../meta/profile';
 import { Autopilot } from './Autopilot';
+import { Director } from './Director';
+import { SpeedFX, TrailFX } from './SpeedFX';
 import { ChaseCamera } from './ChaseCamera';
 import { levelFor } from './difficulty';
 import { Action, Input } from './Input';
@@ -61,6 +66,15 @@ export class Game {
   private level = 1;
   private stars: THREE.Group;
   private cam?: THREE.PerspectiveCamera;
+  director = new Director(1);
+  fx = new SpeedFX();
+  trail = new TrailFX();
+  private tray: THREE.Object3D;
+  private coinPitch = 0;
+  private coinPitchT = 0;
+  private lastGeom = '';
+  /** per-run tallies for achievements and the daily challenge */
+  run = { nearMisses: 0, jumps: 0, escapes: 0, fish: 0, magnets: 0, rides: 0, loops: 0, maxLevel: 1 };
   /** Debug: frame a character with the camera (used for model review). */
   inspect: { obj: THREE.Object3D; offset: [number, number, number]; height: number } | null = null;
 
@@ -71,7 +85,34 @@ export class Game {
     this.root.add(this.cat.root);
     this.stars = this.makeStars();
     this.root.add(this.stars);
+    this.root.add(this.fx.root, this.trail.root);
+    this.tray = teaTray();
+    this.tray.scale.setScalar(1.5);
+    this.tray.position.y = 0.02;
+    this.tray.visible = false;
+    this.cat.root.add(this.tray);
+    this.applySettings();
+    useProfile.subscribe((st, prev) => {
+      if (st.settings !== prev.settings) this.applySettings();
+      if (st.equipped !== prev.equipped) this.cat.model.applyCosmetics(st.equipped);
+    });
+    this.cat.model.applyCosmetics(useProfile.getState().equipped);
     this.newRun(opts.seed);
+  }
+
+  /** Settings → audio volumes, camera roll and graphics level of detail. */
+  applySettings() {
+    const st = useProfile.getState().settings;
+    audio.setSettings(st);
+    this.camera.rollFollow = st.cameraRoll === 'full' ? 0.88 : 0.5;
+    this.cat.model.furEnabled = this.quality() === 'high';
+  }
+
+  quality(): 'high' | 'low' {
+    const q = useProfile.getState().settings.quality;
+    if (q !== 'auto') return q;
+    const coarse = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
+    return coarse || (navigator.hardwareConcurrency ?? 8) <= 4 ? 'low' : 'high';
   }
 
   /** Cartoon stars that circle the cat's head after a crash. */
@@ -107,9 +148,13 @@ export class Game {
     }
     this.coins = 0;
     this.level = 1;
+    this.run = { nearMisses: 0, jumps: 0, escapes: 0, fish: 0, magnets: 0, rides: 0, loops: 0, maxLevel: 1 };
+    this.director?.reset(this.track?.seed ?? 1);
+    this.lastGeom = '';
     this.crashKind = null;
     this.lastPiece = -1;
     this.stars.visible = false;
+    this.director.reset(this.track.seed);
     this.track.ensure(CHUNK_LENGTH * 3);
     this.streamer = new TrackStreamer(this.track);
     this.root.add(this.streamer.root);
@@ -130,17 +175,46 @@ export class Game {
   }
 
   /** Start (or instantly restart) a run. */
-  start() {
+  start(seed?: number) {
     const hud = useHud.getState();
+    audio.unlock();
+    audio.setLevel(1);
+    audio.setMusic('chase');
+    if (seed !== undefined) {
+      this.newRun(seed);
+      hud.set({ phase: 'playing', coins: 0, distance: 0, speedLevel: 1, stumbled: false, magnet: 0, popup: null, warn: null });
+      this.camera.mode = 'chase';
+      return;
+    }
     if (hud.phase === 'over' || this.player.crashed) this.newRun();
     this.camera.mode = 'chase';
     hud.set({ phase: 'playing', coins: 0, distance: 0, speedLevel: 1, stumbled: false, magnet: 0, popup: null, warn: null });
   }
 
+  /** Back to the main menu (fresh attract-mode run in the background). */
+  toMenu() {
+    const hud = useHud.getState();
+    this.newRun();
+    this.camera.mode = 'showcase';
+    this.camera.showcaseTarget = null;
+    hud.set({ phase: 'title', popup: null, warn: null });
+    audio.setMusic('menu');
+  }
+
+  /** Menu character preview: orbit the camera around one of the cast. */
+  previewCharacter(name: 'cat' | 'skitter' | 'chomp' | 'twig') {
+    this.camera.showcaseTarget = name === 'cat' ? null : this.squad.get(name).ch.root;
+  }
+
   togglePause() {
     const hud = useHud.getState();
-    if (hud.phase === 'playing') hud.set({ phase: 'paused' });
-    else if (hud.phase === 'paused') hud.set({ phase: 'playing' });
+    if (hud.phase === 'playing') {
+      hud.set({ phase: 'paused' });
+      audio.setMusic('menu');
+    } else if (hud.phase === 'paused') {
+      hud.set({ phase: 'playing' });
+      audio.setMusic('chase');
+    }
   }
 
   inspectCharacter(name: 'cat' | 'skitter' | 'chomp' | 'twig' | null, offset: [number, number, number] = [0, 0.4, 4.2], height = 1.1) {
@@ -162,6 +236,8 @@ export class Game {
   update(dt: number, cam: THREE.PerspectiveCamera) {
     this.cam = cam;
     dt = Math.min(dt, 1 / 20);
+    const realDt = dt;
+    if (this.director.slowT > 0) dt *= 0.45;
     const hud = useHud.getState();
     for (const a of this.input.consume()) {
       if (a === 'pause') this.togglePause();
@@ -204,12 +280,19 @@ export class Game {
     this.squad.update(dt, p, this.entities, se, live);
     for (const e of se) this.onSquadEvent(e);
 
+    if (live) this.director.update(dt, { track: this.track, player: p, entities: this.entities, squad: this.squad, banner: (t) => hud.showToast(t, 'good') });
+
     this.animateCat(dt);
     this.camera.mode = p.crashed ? 'crash' : playing ? 'chase' : 'showcase';
     this.camera.update(dt, cam, this.track, p);
     this.applyInspect(cam);
     this.updateSun();
     this.updateStars();
+    const boost = (p.rideT > 0 ? 0.5 : 0) + (p.frame.pitch < -0.4 ? 0.35 : 0);
+    this.fx.update(realDt, cam, playing ? p.speed : 4, boost, playing && !p.crashed);
+    this.trail.update(dt, this.cat.root, useProfile.getState().equipped.trail, playing && !p.crashed && p.speed > 5);
+    this.tray.visible = p.rideT > 0;
+    audio.update(realDt, { speed: playing ? p.speed : 0, grinding: playing && !p.airborne && !p.crashed && p.rideT <= 0, sliding: p.sliding, playing: playing && !p.crashed, theme: this.env.themeAt(p.frame.pos.z).id });
 
     if (live) {
       const lvl = levelFor(p.distance);
@@ -218,10 +301,15 @@ export class Game {
         this.camera.boost(1.4);
         hud.set({ speedLevel: lvl });
         hud.popupText(`Speed level ${lvl}`, 'level');
+        this.run.maxLevel = lvl;
+        audio.setLevel(lvl);
+        audio.levelUp();
       }
       const piece = this.track.pieceAt(p.s);
       if (piece && piece.index !== this.lastPiece) {
         this.lastPiece = piece.index;
+        if (this.lastGeom === 'loop' || this.lastGeom === 'giantLoop') this.run.loops++;
+        this.lastGeom = piece.geom;
         if (['loop', 'corkscrew', 'helix', 'circle', 'drop', 'sharpTurn', 'twist', 'dip'].includes(piece.geom) || piece.label === 'Steep climb') hud.showToast(piece.label, 'good');
         else if (piece.lane === 'cross') hud.showToast('Rails crossing', 'good');
         else if (piece.lane === 'merge') hud.showToast('Rails merging', 'info');
@@ -234,7 +322,10 @@ export class Game {
     if (p.crashed && hud.phase === 'playing' && p.crashT > 1.9) {
       const best = Math.max(hud.best, p.distance);
       saveBest(best);
-      hud.set({ phase: 'over', best, newBest: p.distance >= best && p.distance > 0, blame: this.crashKind ? CATALOG[this.crashKind].blame : 'took a tumble' });
+      const blame = this.crashKind ? CATALOG[this.crashKind].blame : 'took a tumble';
+      useProfile.getState().finishRun({ distance: p.distance, coins: this.coins, cause: blame, ...this.run });
+      hud.set({ phase: 'over', best, newBest: p.distance >= best && p.distance > 0, blame });
+      audio.setMusic('menu');
     }
 
     this.hudTimer -= dt;
@@ -260,18 +351,25 @@ export class Game {
     switch (e.type) {
       case 'switch':
         this.cat.react('hop', e.dir);
+        audio.hop(e.dir);
         break;
       case 'switchBlocked':
         hud.showToast('No rail to hop to here', 'warn');
         break;
       case 'jump':
         this.cat.react('launch');
+        this.run.jumps++;
+        audio.jump();
         break;
       case 'land':
         this.cat.react('land', e.impact);
+        if (e.impact > 6) audio.land();
         break;
       case 'stumble':
         this.cat.react('hit');
+        audio.impact(this.crashKind ?? 'box', false);
+        audio.stumble();
+        audio.yowl();
         this.camera.kick(0.5);
         this.squad.onStumble();
         hud.set({ stumbled: true });
@@ -280,6 +378,9 @@ export class Game {
         break;
       case 'crash':
         this.camera.kick(1.1);
+        audio.setMusic('off');
+        audio.crash(this.crashKind ?? 'box');
+        setTimeout(() => audio.yowl(), 250);
         this.squad.onCrash();
         this.stars.visible = true;
         hud.popupText(CRASH_WORDS[Math.floor(Math.random() * CRASH_WORDS.length)], 'crash');
@@ -293,13 +394,27 @@ export class Game {
       case 'coin':
         this.coins++;
         this.cat.react('coin');
+        // consecutive coins climb in pitch
+        this.coinPitch = this.coinPitchT > 0 ? Math.min(this.coinPitch + 1, 12) : 0;
+        this.coinPitchT = 0.6;
+        audio.coin(this.coinPitch);
         break;
       case 'bonus':
         this.cat.react('coin');
+        audio.bonus();
         if (e.item === 'fish') {
           this.coins += 25;
+          this.run.fish++;
           hud.popupText('Golden fish +25', 'bonus');
-        } else hud.popupText('Coin magnet!', 'bonus');
+        } else if (e.item === 'magnet') {
+          this.run.magnets++;
+          hud.popupText('Coin magnet!', 'bonus');
+        } else {
+          this.run.rides++;
+          this.player.rideT = 7;
+          this.camera.boost(1.6);
+          hud.popupText('Tea tray ride!', 'bonus');
+        }
         break;
       case 'hit':
         if (this.god) break;
@@ -313,11 +428,24 @@ export class Game {
         for (const pe of this.events) this.onPlayerEvent(pe);
         this.events.length = 0;
         break;
+      case 'smash':
+        audio.impact(e.kind, false);
+        this.camera.kick(0.25);
+        break;
+      case 'landed':
+        if (e.ahead < 90 && e.ahead > -5) {
+          audio.impact(e.kind, true);
+          this.camera.kick(e.kind === 'giantPot' ? 0.9 : 0.4);
+        }
+        break;
       case 'nearMiss':
         this.cat.react('dodge', e.dir);
+        this.run.nearMisses++;
+        audio.whoosh();
         break;
       case 'warn':
         hud.set({ warn: { id: Date.now(), text: e.text } });
+        audio.warn();
         break;
     }
   }
@@ -326,16 +454,29 @@ export class Game {
     const hud = useHud.getState();
     if (e.type === 'taunt' && (e.show === 'tease' || e.show === 'laugh')) {
       setTimeout(() => {
-        if (this.player.state === 'ride') this.cat.react('angry');
+        if (this.player.state === 'ride') {
+          this.cat.react('angry');
+          audio.yowl(true);
+        }
       }, 380);
     }
-    if (e.type === 'throw') this.lookAtRoachT = 1.2;
+    if (e.type === 'taunt') {
+      if (e.show === 'laugh') audio.laugh(e.who);
+      if (e.show === 'tease') audio.raspberry();
+    }
+    if (e.type === 'throw') {
+      this.lookAtRoachT = 1.2;
+      audio.whoosh();
+    }
     if (e.type === 'trick') hud.showToast(e.text, 'warn');
     if (e.type === 'ambush') {
       hud.showToast(e.text, 'warn');
       this.cat.react('angry');
     }
     if (e.type === 'escape') {
+      this.run.escapes++;
+      this.director.slowT = Math.max(this.director.slowT, 0.7);
+      audio.escape();
       hud.popupText('So close! They slipped away', 'bonus');
       setTimeout(() => this.cat.react('angry'), 300);
     }
@@ -382,7 +523,12 @@ export class Game {
     r.visible = p.crashed || p.invulnT <= 0 || Math.floor(p.invulnT * 12) % 2 === 0;
   }
 
+  private updateStarsTimer(dt: number) {
+    this.coinPitchT = Math.max(0, this.coinPitchT - dt);
+  }
+
   private updateStars() {
+    this.updateStarsTimer(1 / 60);
     if (!this.stars.visible) return;
     const head = this.cat.model.sk.byName.head.getWorldPosition(new THREE.Vector3());
     this.stars.children.forEach((s, i) => {

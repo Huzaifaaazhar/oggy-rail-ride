@@ -59,6 +59,9 @@ export class CatModel {
   body: THREE.SkinnedMesh | null = null;
   private shells: THREE.Object3D[] = [];
   private camDist = 0;
+  /** graphics setting: fur shells on/off */
+  furEnabled = true;
+  private collar: THREE.Object3D | null = null;
 
   constructor() {
     const spec = catSpec();
@@ -188,8 +191,58 @@ export class CatModel {
 
   /** Called once per frame: level of detail for the fur. */
   updateLod() {
-    const show = this.camDist < 7.5;
+    const show = this.furEnabled && this.camDist < 7.5;
     for (const s of this.shells) s.visible = show;
+  }
+
+  /** Unlockable cosmetics; none of them change the character's silhouette or face. */
+  applyCosmetics(eq: { coat: string; collar: string | null; trail: string | null }) {
+    const tint = { 'coat-navy': '#ffffff', 'coat-midnight': '#c7cde6', 'coat-storm': '#d8e4ee' }[eq.coat] ?? '#ffffff';
+    const sheen = { 'coat-navy': '#8fa9e8', 'coat-midnight': '#e4ecff', 'coat-storm': '#b9d3e6' }[eq.coat] ?? '#8fa9e8';
+    for (const m of [this.fur, ...this.shellMats]) {
+      m.color.set(tint);
+      m.sheenColor.set(sheen);
+    }
+    if (this.collar) {
+      this.collar.parent?.remove(this.collar);
+      this.collar = null;
+    }
+    if (!eq.collar) return;
+    const g = new THREE.Group();
+    const neck = new THREE.Vector3(0, 1.2, 0.03);
+    if (eq.collar === 'collar-bell' || eq.collar === 'collar-bandana') {
+      const band = new THREE.Mesh(
+        new THREE.TorusGeometry(0.15, 0.028, 10, 40),
+        new THREE.MeshPhysicalMaterial({ color: eq.collar === 'collar-bell' ? '#c0392b' : '#2c8d8a', roughness: 0.6, sheen: 0.6 }),
+      );
+      band.rotation.x = Math.PI / 2 - 0.18;
+      band.scale.set(1.05, 1, 0.95);
+      g.add(band);
+      if (eq.collar === 'collar-bell') {
+        const bell = new THREE.Mesh(new THREE.SphereGeometry(0.04, 18, 14), new THREE.MeshStandardMaterial({ color: '#e3b341', metalness: 1, roughness: 0.2 }));
+        bell.position.set(0, -0.045, 0.15);
+        g.add(bell);
+      } else {
+        const knot = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.16, 3), band.material);
+        knot.position.set(0, -0.08, 0.13);
+        knot.rotation.x = Math.PI;
+        g.add(knot);
+      }
+    } else {
+      const brass = new THREE.MeshStandardMaterial({ color: '#d4a24c', metalness: 0.95, roughness: 0.25 });
+      for (const sx of [-1, 1]) {
+        const wing = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.1, 4), brass);
+        wing.rotation.z = sx * Math.PI / 2;
+        wing.position.set(sx * 0.05, -0.02, 0.15);
+        g.add(wing);
+      }
+      const knot = new THREE.Mesh(new THREE.SphereGeometry(0.025, 12, 10), brass);
+      knot.position.set(0, -0.02, 0.155);
+      g.add(knot);
+    }
+    g.position.copy(neck);
+    attachRigid(g, this.sk, 'neck');
+    this.collar = g;
   }
 
   /** Model-space rest matrix helper for gameplay sockets. */

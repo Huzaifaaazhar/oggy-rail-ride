@@ -65,6 +65,9 @@ export class EnvironmentStreamer {
     const prev = THEME_ORDER[(i - 1 + this.seed) % THEME_ORDER.length];
     let id = THEME_ORDER[(i + this.seed) % THEME_ORDER.length];
     if (id === prev || r.chance(0.3)) id = THEME_ORDER[(i * 5 + this.seed + 1) % THEME_ORDER.length];
+    // the further up the staircase, the more often the house stops making sense
+    const surreal = i >= 6 ? Math.min(0.55, 0.15 + (i - 6) * 0.05) : 0;
+    if (r.chance(surreal)) return THEMES.impossible;
     return THEMES[id];
   }
 
@@ -203,7 +206,8 @@ export class EnvironmentStreamer {
     const wallH = 260;
     const wallMat = theme.wall();
     for (const sx of [-1, 1]) {
-      if (theme.id === 'balcony' && sx === 1) continue;
+      if ((theme.id === 'balcony' && sx === 1) || theme.id === 'rooftop') continue;
+      if (theme.id === 'impossible' && rng.chance(0.5)) continue;
       const wall = new THREE.Mesh(new THREE.BoxGeometry(4, wallH, ZONE_LEN + 2), wallMat);
       wall.position.set(sx * (W + 2), floorY + wallH / 2, zc);
       group.add(wall);
@@ -217,22 +221,31 @@ export class EnvironmentStreamer {
         yield;
       }
     }
-    if (theme.id === 'balcony') {
-      const rail = P.stoneRailing(ZONE_LEN);
-      place(rail, W - 2, zc, Math.PI / 2);
+    if (theme.id === 'balcony' || theme.id === 'rooftop') {
+      if (theme.id === 'balcony') place(P.stoneRailing(ZONE_LEN), W - 2, zc, Math.PI / 2);
+      else for (const sx of [-1, 1]) place(P.box(new THREE.Group(), 3, 3, ZONE_LEN, P.mat('#8a5a44', 0.8)).parent!, sx * (W - 2), zc, 0);
       for (let i = 0; i < 5; i++) {
         const c = P.cloud(k * 10 + i);
         c.position.set(W + 120 + rng.range(0, 160), floorY + rng.range(-10, 120), zc + rng.range(-150, 150));
         group.add(c);
       }
-      const backdrop = new THREE.Mesh(new THREE.PlaneGeometry(1400, 600), new THREE.MeshBasicMaterial({ map: SKY(), fog: false }));
-      backdrop.position.set(W + 500, floorY + 120, zc);
-      backdrop.rotation.y = -Math.PI / 2;
-      group.add(backdrop);
+      for (const sx of theme.id === 'rooftop' ? [-1, 1] : [1]) {
+        const backdrop = new THREE.Mesh(new THREE.PlaneGeometry(1400, 600), new THREE.MeshBasicMaterial({ map: SKY(), fog: false }));
+        backdrop.position.set(sx * (W + 500), floorY + 120, zc);
+        backdrop.rotation.y = -sx * Math.PI / 2;
+        group.add(backdrop);
+        if (sx === -1) for (let i = 0; i < 5; i++) {
+          const c = P.cloud(k * 10 + 5 + i);
+          c.position.set(-(W + 120 + rng.range(0, 160)), floorY + rng.range(-10, 120), zc + rng.range(-150, 150));
+          group.add(c);
+        }
+      }
     }
+    if (theme.id === 'impossible') this.impossibleExtras(group, statics, rng, sc, z0, z1, floorY, W);
 
     // wall decorations + furniture along both sides
     const sides = theme.id === 'balcony' ? [-1] : [-1, 1];
+    void sides;
     for (const sx of sides) {
       let z = z0 - rng.range(8, 30);
       while (z > z1 + 20) {
@@ -242,7 +255,7 @@ export class EnvironmentStreamer {
       }
       // portraits high on the wall
       for (let pz = z0 - 20; pz > z1 + 20; pz -= rng.range(45, 70)) {
-        if (theme.id === 'garden') break;
+        if (theme.id === 'garden' || theme.id === 'rooftop' || theme.id === 'impossible') break;
         const pf = P.pictureFrame(rng.range(12, 18), rng.range(14, 22), Math.floor(rng.range(0, 100)));
         place(pf, sx * (W - 1), pz, -sx * Math.PI / 2, floorY + 58 + rng.range(0, 20));
       }
@@ -379,6 +392,23 @@ export class EnvironmentStreamer {
         else if (ok(8, 8, 10)) place(P.armchair('#3d7ea6'), x(8), z, face);
         return 24;
       }
+      case 'bedroom': {
+        const pick = rng.int(0, 3);
+        if (pick === 0 && ok(14, 16, 14)) place(P.bed(), x(14), z, face);
+        else if (pick === 1 && ok(5, 9, 32)) place(P.wardrobe(), x(4), z, face);
+        else if (pick === 2 && ok(5, 4, 20)) place(P.toyBlocks(rng.int(0, 999)), x(6), z, rng.range(0, 3));
+        else if (ok(5, 6, 12)) place(P.sideTable(true), x(5), z, face);
+        return 26;
+      }
+      case 'rooftop': {
+        if (rng.chance(0.55) && ok(8, 8, 32)) place(P.chimney(), x(8), z, 0);
+        else if (ok(6, 7, 34)) place(P.aerial(), x(6), z, rng.range(0, 3));
+        return 40;
+      }
+      case 'impossible': {
+        if (ok(10, 12, 32)) place(P.standingDoor(rng.pick(['#7b3f2a', '#2f5d50', '#5b3a6b'])), x(rng.range(8, 30)), z, rng.range(-1.5, 1.5));
+        return 45;
+      }
     }
   }
 
@@ -396,6 +426,42 @@ export class EnvironmentStreamer {
         return rng.pick([() => P.globe(), () => P.armchair('#8e3b46'), () => P.rug(40, 40, 2)])();
       case 'balcony':
         return rng.pick([() => P.pottedPlant(rng.int(0, 99), 1.6), () => P.fountain()])();
+      case 'bedroom':
+        return rng.pick([() => P.rug(40, 50, rng.int(0, 2)), () => P.toyBlocks(rng.int(0, 99)), () => P.bed()])();
+      case 'rooftop':
+        return rng.pick([() => P.chimney(), () => P.pottedPlant(rng.int(0, 99), 1.8)])();
+      case 'impossible':
+        return rng.pick([() => P.floatingStairs(rng.int(0, 99)), () => P.grandfatherClock(), () => P.armchair('#a58bd8')])();
+    }
+  }
+
+  /** Surreal set dressing: floating stair fragments and an upside-down room overhead. */
+  private impossibleExtras(group: THREE.Group, statics: THREE.Group, rng: Rng, sc: ZoneScan, z0: number, z1: number, floorY: number, W: number) {
+    void statics;
+    const clear = (x: number, y: number, z: number, r: number) => {
+      for (let i = 0; i < sc.pts.length; i += 3) if (Math.hypot(sc.pts[i] - x, sc.pts[i + 1] - y, sc.pts[i + 2] - z) < r + 12) return false;
+      return true;
+    };
+    for (let i = 0; i < 9; i++) {
+      const x = rng.range(-W + 15, W - 15);
+      const y = rng.range(sc.minY, sc.maxY + 60);
+      const z = rng.range(z1 + 20, z0 - 20);
+      if (!clear(x, y + 15, z + 25, 30)) continue;
+      const st = P.floatingStairs(rng.int(0, 999));
+      st.position.set(x, y, z);
+      st.rotation.set(rng.range(-0.8, 0.8), rng.range(0, 6.3), rng.range(-1.2, 1.2));
+      group.add(st);
+    }
+    // an upside-down room hanging above: floor plane and furniture on the "ceiling"
+    const ceilY = Math.max(sc.maxY + 70, floorY + 140);
+    const ceil = new THREE.Mesh(new THREE.BoxGeometry(W * 2, 4, ZONE_LEN), P.mat('#e9dcff', 0.6));
+    ceil.position.set(0, ceilY, (z0 + z1) / 2);
+    group.add(ceil);
+    for (let i = 0; i < 8; i++) {
+      const prop = rng.pick([() => P.sofa('#a58bd8'), () => P.diningTable(true), () => P.bookshelf(16, 30, i), () => P.armchair('#e9c46a')])();
+      prop.rotation.z = Math.PI;
+      prop.position.set(rng.range(-W + 20, W - 20), ceilY - 2, rng.range(z1 + 20, z0 - 20));
+      group.add(prop);
     }
   }
 

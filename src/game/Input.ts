@@ -21,6 +21,7 @@ export class Input {
     this.attached = true;
     window.addEventListener('keydown', this.onKey);
     this.el.addEventListener('touchstart', this.onTouchStart as EventListener, { passive: true });
+    this.el.addEventListener('touchmove', this.onTouchMove as EventListener, { passive: false });
     this.el.addEventListener('touchend', this.onTouchEnd as EventListener, { passive: true });
   }
 
@@ -28,6 +29,7 @@ export class Input {
     this.attached = false;
     window.removeEventListener('keydown', this.onKey);
     this.el.removeEventListener('touchstart', this.onTouchStart as EventListener);
+    this.el.removeEventListener('touchmove', this.onTouchMove as EventListener);
     this.el.removeEventListener('touchend', this.onTouchEnd as EventListener);
   }
 
@@ -81,6 +83,26 @@ export class Input {
     this.touchStart = { x: t.clientX, y: t.clientY, t: performance.now() };
   };
 
+  /** Fire as soon as the finger has travelled far enough (not on release) — feels instant. */
+  private onTouchMove = (e: TouchEvent) => {
+    if (!this.touchStart) return;
+    const target = e.target as HTMLElement | null;
+    if (target && target.closest('button, input, .card')) return;
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    const dx = t.clientX - this.touchStart.x;
+    const dy = t.clientY - this.touchStart.y;
+    const min = 26;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < min) return;
+    if (Math.abs(dx) > Math.abs(dy)) this.push(dx < 0 ? 'left' : 'right');
+    else this.push(dy < 0 ? 'jump' : 'slide');
+    // chain further swipes within the same touch
+    this.touchStart = { x: t.clientX, y: t.clientY, t: performance.now() };
+    this.swiped = true;
+  };
+
+  private swiped = false;
+
   private onTouchEnd = (e: TouchEvent) => {
     if (!this.touchStart) return;
     const t = e.changedTouches[0];
@@ -88,7 +110,11 @@ export class Input {
     const dy = t.clientY - this.touchStart.y;
     const dt = performance.now() - this.touchStart.t;
     this.touchStart = null;
-    const min = 28;
+    if (this.swiped) {
+      this.swiped = false;
+      return;
+    }
+    const min = 22;
     if (Math.max(Math.abs(dx), Math.abs(dy)) < min || dt > 700) return;
     if (Math.abs(dx) > Math.abs(dy)) this.push(dx < 0 ? 'left' : 'right');
     else this.push(dy < 0 ? 'jump' : 'slide');

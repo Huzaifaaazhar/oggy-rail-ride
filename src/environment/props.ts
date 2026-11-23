@@ -459,3 +459,82 @@ export function newelColumnGeometry() {
   ];
   return new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), 40);
 }
+
+export function bed() {
+  const g = new THREE.Group();
+  const wood = DARKWOOD();
+  box(g, 18, 3, 26, wood, 0, 0, 0);
+  rbox(g, 17, 3.2, 24, 1.4, mat('#fdf6ec', 0.9, { sheen: 1 }), 0, 3, 0);
+  rbox(g, 17.5, 1.6, 15, 0.7, mat('#f28f8f', 0.9, { sheen: 1 }), 0, 5.6, 4.2);
+  for (const sx of [-1, 1]) rbox(g, 6.5, 2.2, 4, 1.1, mat('#ffffff', 0.9, { sheen: 1 }), sx * 4, 6, -9);
+  box(g, 18, 12, 1.2, wood, 0, 0, -12.6);
+  sph(g, 1.2, mat('#d4a24c', 0.3, { metalness: 0.9 }), -8.5, 12.3, -12.6);
+  sph(g, 1.2, mat('#d4a24c', 0.3, { metalness: 0.9 }), 8.5, 12.3, -12.6);
+  return g;
+}
+
+export function wardrobe() {
+  const g = new THREE.Group();
+  const wood = WOOD();
+  box(g, 16, 30, 7, wood);
+  box(g, 17, 1.2, 7.6, DARKWOOD(), 0, 30);
+  for (const sx of [-1, 1]) {
+    box(g, 7.4, 26, 0.4, mat('#a8743f', 0.45), sx * 3.9, 2, 3.6);
+    sph(g, 0.4, mat('#d4a24c', 0.25, { metalness: 0.9 }), sx * 0.8, 15, 3.9);
+  }
+  return g;
+}
+
+export function toyBlocks(seed: number) {
+  const g = new THREE.Group();
+  const rng = makeRng(seed);
+  const colors = ['#e63946', '#f4a261', '#2a9d8f', '#457b9d', '#e9c46a'];
+  let y = 0;
+  for (let i = 0; i < 5; i++) {
+    const s = 4 - i * 0.4;
+    const b = box(g, s, s, s, mat(rng.pick(colors), 0.45, { clearcoat: 0.4 }), rng.range(-0.6, 0.6), y, rng.range(-0.6, 0.6), rng.range(-0.5, 0.5));
+    void b;
+    y += s;
+  }
+  return g;
+}
+
+export function chimney() {
+  const g = new THREE.Group();
+  const brick = mat('#a34a32', 0.85);
+  box(g, 10, 26, 10, brick);
+  box(g, 12, 2, 12, mat('#7a3524', 0.8), 0, 26);
+  for (const sx of [-2.2, 2.2]) cyl(g, 1.4, 1.4, 5, mat('#c0703f', 0.7), sx, 28, 0, 16);
+  return g;
+}
+
+export function aerial() {
+  const g = new THREE.Group();
+  const steel = mat('#9aa5a4', 0.3, { metalness: 0.9 });
+  cyl(g, 0.4, 0.3, 30, steel);
+  for (let i = 0; i < 5; i++) {
+    const bar = box(g, 12 - i * 1.6, 0.4, 0.4, steel, 0, 22 + i * 1.6, 0);
+    void bar;
+  }
+  return g;
+}
+
+/** A chunk of staircase floating in mid-air, for the impossible rooms. */
+export function floatingStairs(seed: number) {
+  const g = new THREE.Group();
+  const rng = makeRng(seed);
+  const tread = mat('#ffffff', 0.5, { map: woodGrain('tread-wood', '#8a5228', '#5a2f14', '#a96a3a') });
+  const carpetM = mat('#b3263a', 0.95);
+  const n = rng.int(6, 12);
+  for (let i = 0; i < n; i++) {
+    box(g, 16, 3, 5, tread, 0, i * 3, i * 5);
+    box(g, 8, 0.3, 5, carpetM, 0, i * 3 + 3, i * 5);
+  }
+  for (let i = 0; i < n; i += 2) cyl(g, 0.4, 0.4, 7, mat('#f4ead6', 0.4), 7.5, i * 3 + 3, i * 5, 10);
+  return g;
+}
+
+export function standingDoor(color: string) {
+  const g = door(14, 30, color);
+  return g;
+}
