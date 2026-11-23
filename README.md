@@ -23,9 +23,51 @@ npm run build      # type-check + production bundle
 | Jump | ↑, W or Space | swipe up |
 | Belly-slide | ↓ or S | swipe down |
 | Pause | Esc or P | pause button |
+| Ride again after a crash | Enter, Space or R | Ride again button |
 
-You can only hop where the rails are close enough. Wide splits and crossings
-block hops, and a toast tells you when a hop isn't possible.
+You can only hop to a rail that physically connects right now. Wide splits
+and crossings refuse the hop. Input is forgiving: a switch pressed just
+before a hop zone opens is held for a moment, and a jump pressed just before
+landing fires on touchdown.
+
+## How the chase works (Part 2)
+
+- **Goal:** ride as far as you can, collect coins, and survive the house and
+  the roaches' tricks. The roaches always stay ahead. Ride cleanly and the
+  gap tightens (watch the chase meter), but just before you'd catch them they
+  pull an escape trick.
+- **Obstacles:** 25 household hazards in three classes. **Low** (jump): books,
+  boxes, toy cars, buckets, pots, barrels, rug rolls, vacuum cleaners,
+  cushions. **High** (slide): washing lines, hanging lamps, ceiling fans,
+  pan racks, falling tables. **Block** (switch rails): sofas, chairs, plants,
+  cupboards, fridges, washing machines, teapots, vases, doors. Some cover one
+  rail, some two, some all three. Some move: toy cars and barrels roll toward
+  you, furniture slides across, tables drop from above, doors swing open,
+  lamps swing, vacuums cross the rails, fans spin. Moving hazards get a
+  warning triangle and a banner.
+- **Fairness:** every row is generated from the local rail layout and
+  checked to leave a passable route. Merged rails only get jump or slide
+  hazards across the bundle. Rails too far apart to hop never get blocks.
+  Roach tricks must find a clear gap in the obstacle stream.
+- **Hits:** a side clip is a stumble (you slow down and the roaches laugh). A
+  head-on hit, or a second stumble within 6 seconds, is a crash: comic splat,
+  stars, a tumble off the banister, then results with an instant restart.
+- **Coins:** lines, arcs over jumps, tunnels under slides, and paths through
+  zig-zags. Golden fish are worth +25 coins. The coin magnet pulls coins from
+  every rail for 10 seconds.
+- **Speed:** nine speed levels at set distances (20 → 52 m/s), each with a
+  pop-up and a camera kick. Obstacle density, pattern variety (zig-zags,
+  combos, gauntlets), roach trick frequency and track set-pieces all ramp up
+  with distance.
+- **Roaches:**
+  - **Skitter, the planner**, rigs doors, drops tables, shoves furniture and
+    swings lamps.
+  - **Chomp, the chaos thrower**, lobs volleys of household items and rolls
+    barrels back at you.
+  - **Twig, the unpredictable one**, switches routes, taunts up close,
+    vanishes and reappears, and turns on fans.
+  - **Ambushes:** past 900 m all three stage scripted ones (the pincer, the
+    conga line, fan-fare).
 
 ### URL options (development)
 
@@ -97,6 +139,29 @@ The characters are original designs made for this project:
 behind a small rig interface (joint names plus face parameters). Licensed or
 artist-made models (glTF with a skeleton and blend shapes) can replace them by
 mapping their bones to the same joint names. The game logic doesn't change.
+
+## Tests
+
+- `npm test` runs the vitest suite:
+  - track continuity, frames, bounds and clearances
+  - pattern fairness in every track context
+  - speed curve
+  - rail switching, including refusing unconnected rails
+  - staying attached through loops, corkscrews, helices, drops and dips
+  - jump and slide heights, and the buffered jump
+  - stumble, crash and tumble
+  - mesher topology
+- `node scripts/e2e.cjs` (with `npm run dev` running) runs browser checks:
+  - a long autopilot run: always on the rails, roaches always ahead, coins,
+    speed and interference
+  - crash, results and instant restart
+  - stumble, then crash
+  - jump and slide at top speed
+  - no tunnelling at 20 fps
+  - coins and magnet
+  - loops and corkscrews
+  - ambushes
+  - zero console errors
 
 ## Dev scripts (need `npm run dev` running)
 

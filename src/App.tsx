@@ -30,7 +30,8 @@ function GameApp() {
 
   useEffect(() => {
     (window as unknown as { __game: Game }).__game = game;
-    return () => game.dispose();
+    game.input.attach();
+    return () => game.input.dispose();
   }, [game]);
 
   return (

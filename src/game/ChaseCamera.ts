@@ -24,6 +24,7 @@ export class ChaseCamera {
   mode: 'chase' | 'showcase' | 'crash' = 'showcase';
   private showT = 0;
   private blend = 0; // 0 = showcase, 1 = chase
+  private crashY: number | null = null;
 
   kick(amount: number) {
     this.shake = Math.max(this.shake, amount);
@@ -50,8 +51,11 @@ export class ChaseCamera {
 
   update(dt: number, cam: THREE.PerspectiveCamera, track: Track, p: PlayerController) {
     if (this.mode === 'crash') {
-      // hold position and watch the tumble
-      this.look.lerp(p.position, damp(6, dt));
+      // stay put (no clipping through scenery) and tilt to follow the tumble, capped
+      if (this.crashY === null) this.crashY = p.position.y;
+      this.tmp.copy(p.position);
+      this.tmp.y = Math.max(this.tmp.y, this.crashY - 4.5);
+      this.look.lerp(this.tmp, damp(5, dt));
       cam.position.copy(this.pos);
       if (this.shake > 0.001) {
         cam.position.x += (Math.random() - 0.5) * this.shake;
@@ -62,6 +66,7 @@ export class ChaseCamera {
       cam.lookAt(this.look);
       return;
     }
+    this.crashY = null;
     this.blend = clamp(this.blend + (this.mode === 'chase' ? dt * 1.1 : -dt * 1.5), 0, 1);
     const bl = smootherstep(this.blend);
 

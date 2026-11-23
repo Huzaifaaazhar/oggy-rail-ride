@@ -345,7 +345,7 @@ export class RoachSquad {
       else if (pick === 'dropTable') spec = { s, kind: 'table', u: this.rng.pick([-0.5, 0.5]), span: 2, motion: { type: 'drop', trigger: 42, height: 7 }, warn: true, by: 'skitter' };
       else if (pick === 'slider') spec = { s, kind: this.rng.pick(['sofa', 'washer'] as ObstacleKind[]), u, span: 1, motion: { type: 'slide', u1: u === 0 ? this.rng.pick([-1, 1]) : 0, trigger: 36, dur: 0.9 }, warn: true, by: 'skitter' };
       else spec = { s, kind: 'lamp', u, span: 1, motion: { type: 'swing', amp: 0.35, period: 1.6 }, warn: false, by: 'skitter' };
-      if (entities.tryPlace([spec])) {
+      if (entities.tryPlace([spec], 60)) {
         this.stats.traps++;
         events.push({ type: 'trick', who: 'skitter', text: { door: 'Skitter rigged a door', dropTable: 'Skitter cut a table loose', slider: 'Skitter shoved the furniture', lamp: 'Skitter set a lamp swinging' }[pick]! });
       }
@@ -362,7 +362,7 @@ export class RoachSquad {
     ranks.forEach((u, i) => {
       this.later(r, 0.45 + i * 0.18, () => {
         const dur = 0.85;
-        const s = p.s + p.speed * dur + 24 + i * 6;
+        const s = p.s + p.speed * (dur + 0.9) + 14 + i * 6;
         const kind = this.rng.pick(['cushion', 'can', 'yarn', 'pots'] as ObstacleKind[]);
         this.launch(r, { s, kind, u, span: 1, motion: { type: 'static' }, warn: false, by: 'chomp' }, dur);
       });
@@ -412,7 +412,7 @@ export class RoachSquad {
       r.ch.animator.play('mischief', 1.1, 0.12, 0.3);
       this.later(r, 0.7, () => {
         const spec: ObstacleSpec = { s: this.aheadS(p), kind: 'fan', u: 0, span: 3, motion: { type: 'spin' }, warn: true, by: 'twig' };
-        if (entities.tryPlace([spec])) events.push({ type: 'trick', who: 'twig', text: 'Twig switched on the ceiling fan' });
+        if (entities.tryPlace([spec], 60)) events.push({ type: 'trick', who: 'twig', text: 'Twig switched on the ceiling fan' });
       });
     }
   }
@@ -433,7 +433,7 @@ export class RoachSquad {
       ch.ch.animator.play('throw', 0.9, 0.1, 0.2);
     } else if (plan === 'conga') {
       text = 'Roach ambush: the conga line';
-      const step = Math.max(14, p.speed * 0.62);
+      const step = Math.max(16, p.speed * 0.75);
       let free = this.rng.pick([-1, 0, 1]);
       for (let i = 0; i < 3; i++) {
         for (const u of [-1, 0, 1]) if (u !== free) specs.push({ s: s + i * step, kind: this.rng.pick(['washer', 'cupboard', 'chair'] as ObstacleKind[]), u, span: 1, motion: { type: 'static' }, warn: false, by: 'twig' });
@@ -449,7 +449,7 @@ export class RoachSquad {
       ];
       tw.ch.animator.play('mischief', 1.2, 0.1, 0.3);
     }
-    if (entities.tryPlace(specs)) {
+    if (entities.tryPlace(specs, 90)) {
       this.stats.ambushes++;
       events.push({ type: 'ambush', text });
     }

@@ -176,7 +176,7 @@ export class PatternPlanner {
       }
       case 'zigzag': {
         // consecutive rows that force a switch each time, with a coin path through
-        const step = Math.max(14, speed * 0.62);
+        const step = Math.max(16, speed * 0.75);
         const obstacles: ObstacleSpec[] = [];
         const coins: CoinSpec[] = [];
         let freeU = r.pick(RANKS);

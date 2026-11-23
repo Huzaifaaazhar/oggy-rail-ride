@@ -22,25 +22,27 @@ export class Autopilot {
 
   decide(dt: number, p: PlayerController, track: Track, ents: Entities): Action | null {
     this.cooldown -= dt;
-    if (this.cooldown > 0 || p.crashed || p.switchT < 1) return null;
+    if (this.cooldown > 0 || p.crashed) return null;
     const v = Math.max(10, p.speed);
     const f = track.frameAt(p.s, this.f);
-    const my = Math.round(rankOf(f, p.lateral.x));
+    const my = Math.round(rankOf(f, p.switchT < 1 ? f.lanes[p.toRail * 2] : p.lateral.x));
     const look = Math.max(36, v * 1.4);
 
     const mine = this.blockAhead(ents, p, my, look);
-    if (mine < look) {
+    if (mine < look && p.switchT >= 1) {
+      // move toward the rank whose next block is furthest away (handles zig-zags)
       let bestDir = 0;
-      let bestCost = Infinity;
+      let bestDist = mine + 4;
       for (const target of RANKS) {
         if (target === my) continue;
-        if (this.blockAhead(ents, p, target, look) < look) continue;
+        const dist = this.blockAhead(ents, p, target, look * 1.5);
         const dir = target < my ? -1 : 1;
         const step = my + dir;
-        if (step !== target && this.blockAhead(ents, p, step, look) < v * 0.5) continue;
-        const cost = Math.abs(target - my);
-        if (cost < bestCost) {
-          bestCost = cost;
+        // a two-rail move needs the middle rank clear long enough to pass through
+        if (step !== target && this.blockAhead(ents, p, step, look) < v * 0.45) continue;
+        const score = dist - Math.abs(target - my) * 3;
+        if (score > bestDist) {
+          bestDist = score;
           bestDir = dir;
         }
       }
@@ -53,13 +55,18 @@ export class Autopilot {
     // nearest jumpable / slidable thing in our lane
     let threat: { ds: number; cls: string } | null = null;
     for (const o of ents.threatsOnRank(p.s - 0.5, p.s + 30, my)) {
-      if (o.yOff > 1.5) continue;
+      if (o.yOff > 1.5 && o.s - p.s > 14) continue;
       const cls = CATALOG[o.kind].cls;
       const ds = o.s - p.s;
       if (cls === 'block') continue;
       if (!threat || ds < threat.ds) threat = { ds, cls };
     }
     if (!threat) return null;
+    if (threat.cls === 'low' && p.airborne && p.vy < 0 && p.height < 0.9 && threat.ds < v * 0.45) {
+      // land-and-go: buffer the next jump while still coming down
+      this.cooldown = 0.1;
+      return 'jump';
+    }
     if (threat.cls === 'low' && threat.ds < v * 0.2 + 1.4 && !p.airborne) {
       this.cooldown = 0.25;
       return 'jump';

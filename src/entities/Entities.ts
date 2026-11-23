@@ -196,14 +196,27 @@ export class Entities {
    * Place obstacles only if the track allows it and every affected row keeps
    * a passable rail. Used by the roaches' tricks.
    */
-  tryPlace(specs: ObstacleSpec[]): boolean {
+  tryPlace(specs: ObstacleSpec[], searchAhead = 0): boolean {
+    // slide the whole set forward until it sits in a clear gap of the obstacle stream
+    for (let shift = 0; shift <= searchAhead; shift += 6) {
+      const shifted = specs.map((sp) => ({ ...sp, s: sp.s + shift }));
+      if (this.canPlace(shifted)) {
+        for (const sp of shifted) this.spawn(sp);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private canPlace(specs: ObstacleSpec[]) {
     for (const sp of specs) {
       const z = this.zone(sp.s - 20, sp.s + 4);
       if (z.blocked || z.merged) return false;
       if ((sp.span > 1 || CATALOG[sp.kind].cls === 'block') && (!z.hop || !z.flat)) return false;
-      if (!rowIsFair([...this.nearby(sp.s), ...specs.filter((x) => Math.abs(x.s - sp.s) < 8)])) return false;
+      // keep tricks readable: nothing else within 16 m
+      if (this.nearby(sp.s, 16).length) return false;
+      if (!rowIsFair(specs.filter((x) => Math.abs(x.s - sp.s) < 8))) return false;
     }
-    for (const sp of specs) this.spawn(sp);
     return true;
   }
 

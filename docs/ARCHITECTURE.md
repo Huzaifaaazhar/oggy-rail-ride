@@ -121,8 +121,32 @@ generator stepped within a ~4 ms per-frame budget. Static meshes are merged per
 material, turning hundreds of props into a few draw calls. This took the
 worst-case frame hitch from ~230 ms to ~40 ms in headless profiling.
 
-## Known follow-ups (Part 2 and later)
-- Scoring, power-ups, missions, audio and a proper game-over flow.
+# ADR-004: Gameplay rules live in pure, testable modules
+
+**Status:** Accepted (Part 2)
+
+- `game/difficulty.ts` holds the speed milestones and the difficulty curve.
+- `entities/catalog.ts` holds the obstacle classes, sizes and motion types.
+- `entities/patterns.ts` holds the row and coin pattern library and the
+  fairness rule (at least one rank free of blocks, counting both ends of
+  sliding furniture).
+
+None of these import three.js, so vitest exercises them directly.
+
+`Entities` turns specs into meshes, animates motion and runs swept
+track-space collision. Each frame it tests the whole distance travelled, not
+a point, so a 50 m/s rider at 20 fps can't skip a thin washing line. Lateral
+placement uses physical ranks (left, middle, right), so obstacles and coins
+follow the rails through crossings where rail indices swap sides.
+
+`RoachSquad` places every trick through `Entities.tryPlace`, which slides the
+set forward to a clear gap and re-runs the fairness rule.
+
+The roaches' distance is the player's distance plus a gap clamped to at least
+6.5 m. "Never caught" is a structural invariant, not tuning.
+
+## Known follow-ups (Part 3 and later)
+- Audio, missions, more power-ups and persistence beyond the best distance.
 - Move the remaining per-chunk work (rail sweeps) into the same time-sliced path.
 - Level-of-detail for spindles on low-end mobile GPUs.
 - Swap in artist-made character models once assets are available.

@@ -9,14 +9,23 @@ export class Input {
   private touchStart: { x: number; y: number; t: number } | null = null;
   private el: HTMLElement | Window;
 
+  private attached = false;
+
   constructor(el: HTMLElement | Window = window) {
     this.el = el;
+  }
+
+  /** Start listening (idempotent; safe under React StrictMode remounts). */
+  attach() {
+    if (this.attached) return;
+    this.attached = true;
     window.addEventListener('keydown', this.onKey);
-    el.addEventListener('touchstart', this.onTouchStart as EventListener, { passive: true });
-    el.addEventListener('touchend', this.onTouchEnd as EventListener, { passive: true });
+    this.el.addEventListener('touchstart', this.onTouchStart as EventListener, { passive: true });
+    this.el.addEventListener('touchend', this.onTouchEnd as EventListener, { passive: true });
   }
 
   dispose() {
+    this.attached = false;
     window.removeEventListener('keydown', this.onKey);
     this.el.removeEventListener('touchstart', this.onTouchStart as EventListener);
     this.el.removeEventListener('touchend', this.onTouchEnd as EventListener);

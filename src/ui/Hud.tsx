@@ -216,7 +216,6 @@ export function Hud({ game, debug }: { game: Game; debug: boolean }) {
           <Popup />
         </>
       )}
-      {phase === 'over' && <Popup />}
       {debug && <div className="debug">{section}</div>}
       {phase === 'title' && <Title game={game} />}
       {phase === 'paused' && <Paused game={game} />}
