@@ -73,7 +73,7 @@ function Stage({ who, base, action, nonce, apiRef }: { who: Who; base: string; a
   useFrame((_, dt) => {
     const t = Math.min(dt, 1 / 20);
     chars.cat.root.visible = who === 'cat';
-    if (who === 'cat') chars.cat.update(t, { speed01: 0.3, lean: 0, vy: base === 'air' ? Math.sin(performance.now() / 300) * 8 : 0, accel: 0, lookX: 0, lookY: 0, tuck: 0 });
+    if (who === 'cat') chars.cat.update(t, { speed01: 0.3, lean: 0, vy: base === 'air' ? Math.sin(performance.now() / 300) * 8 : 0, accel: 0, lookX: 0, lookY: 0, tuck: 0, ground: base === 'air' ? 0 : 6 });
     for (const id of Object.keys(chars.roaches) as RoachId[]) {
       const r = chars.roaches[id];
       r.root.visible = who === id;

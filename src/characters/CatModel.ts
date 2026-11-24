@@ -3,6 +3,7 @@ import { characterMaterial } from './charMaterial';
 import { CartoonEye } from './face';
 import { Rig, SpringChain } from './rig';
 import { attachRigid, buildSkeleton, BuiltSkeleton, meshGeometry, sculptAsync, skinnedMesh } from './sculpt/runtime';
+import { buildSkate, SKATE_LIFT, skateMaterials, WHEEL_R } from './skates';
 import { CAT, catBrowSpec, catHeadSpec, catNoseSpec, catSpec, catTongueSpec } from './specs/catSpec';
 
 export const CAT_JOINTS = [
@@ -62,11 +63,19 @@ export class CatModel {
   /** graphics setting: fur shells on/off */
   furEnabled = true;
   private collar: THREE.Object3D | null = null;
+  /** skeleton parent, raised so the skate wheels (not the paws) sit on the rail */
+  lift = new THREE.Group();
+  /** wheel spinners of both skates */
+  wheels: THREE.Object3D[] = [];
+  private wheelAngle = 0;
+  private wheelOmega = 0;
 
   constructor() {
     const spec = catSpec();
     this.sk = buildSkeleton(spec.bones);
-    this.root.add(this.sk.root);
+    this.lift.position.y = SKATE_LIFT;
+    this.root.add(this.lift);
+    this.lift.add(this.sk.root);
     for (const b of this.sk.bones) this.rig.add(b.name, b);
 
     this.fur = characterMaterial({ sheen: 0.5, sheenColor: '#8fa9e8', bump: 0.55, bumpFreq: 140, rim: 0.22, rimColor: '#f4f0ff' }) as never;
@@ -137,6 +146,14 @@ export class CatModel {
       attachRigid(bl, this.sk, 'head');
     }
 
+    // ---- inline roller skates bound to the feet
+    const skateMats = skateMaterials();
+    for (const [s, bone] of [[1, 'footL'], [-1, 'footR']] as const) {
+      const sk8 = buildSkate(s * CAT.dims.hipX, skateMats);
+      attachRigid(sk8.group, this.sk, bone);
+      this.wheels.push(...sk8.wheels);
+    }
+
     // ---- rest pose: arms hang from the A-pose bind
     this.sk.byName.shoulderL.rotation.z -= CAT.armAngle - 0.18;
     this.sk.byName.shoulderR.rotation.z += CAT.armAngle - 0.18;
@@ -187,6 +204,16 @@ export class CatModel {
         t.position.set(0, 1.232, 0.31);
         attachRigid(t, this.sk, 'tongue');
     });
+  }
+
+  /** Roll the skate wheels for a ground speed in m/s (capped so the spin never strobes backwards). */
+  spinWheels(dt: number, speed: number) {
+    // wheels coast down when off the rail instead of stopping dead
+    const target = Math.min(speed / WHEEL_R, 26);
+    this.wheelOmega += (target - this.wheelOmega) * Math.min(1, dt * (target > this.wheelOmega ? 10 : 1.5));
+    const omega = this.wheelOmega;
+    this.wheelAngle = (this.wheelAngle + omega * dt) % (Math.PI * 2);
+    for (const w of this.wheels) w.rotation.x = this.wheelAngle;
   }
 
   /** Called once per frame: level of detail for the fur. */

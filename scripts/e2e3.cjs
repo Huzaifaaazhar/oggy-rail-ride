@@ -130,21 +130,27 @@ const check = (name, ok, info = '') => {
     const page = await open('seed=4', { ...devices['Pixel 7'] });
     await page.getByRole('button', { name: 'Start the chase' }).tap();
     await page.evaluate(() => window.__game.advance(1));
-    const swipe = async (dx, dy) => {
-      await page.evaluate(([dx, dy]) => {
+    const swipe = async (dx, dy, steps = 4) => {
+      await page.evaluate(([dx, dy, steps]) => {
         const el = document.querySelector('canvas');
         const mk = (x, y) => new Touch({ identifier: 1, target: el, clientX: x, clientY: y });
         const x0 = 200, y0 = 400;
         el.dispatchEvent(new TouchEvent('touchstart', { touches: [mk(x0, y0)], changedTouches: [mk(x0, y0)], bubbles: true }));
-        for (let i = 1; i <= 4; i++) el.dispatchEvent(new TouchEvent('touchmove', { touches: [mk(x0 + (dx * i) / 4, y0 + (dy * i) / 4)], changedTouches: [mk(x0 + (dx * i) / 4, y0 + (dy * i) / 4)], bubbles: true, cancelable: true }));
+        for (let i = 1; i <= steps; i++) el.dispatchEvent(new TouchEvent('touchmove', { touches: [mk(x0 + (dx * i) / steps, y0 + (dy * i) / steps)], changedTouches: [mk(x0 + (dx * i) / steps, y0 + (dy * i) / steps)], bubbles: true, cancelable: true }));
         el.dispatchEvent(new TouchEvent('touchend', { touches: [], changedTouches: [mk(x0 + dx, y0 + dy)], bubbles: true }));
-      }, [dx, dy]);
+      }, [dx, dy, steps]);
       await page.evaluate(() => window.__game.advance(0.05));
     };
     const rail0 = await page.evaluate(() => window.__game.player.toRail);
     await swipe(-90, 0);
     const rail1 = await page.evaluate(() => window.__game.player.toRail);
     check('swipe left switches rail', rail1 !== rail0, `${rail0} → ${rail1}`);
+    // a long, slow drag must still be exactly one action (regression: it used to hop two rails)
+    const actions = await page.evaluate(() => { const i = window.__game.input; const orig = i.push.bind(i); window.__pushed = []; i.push = (a) => { window.__pushed.push(a); orig(a); }; return true; });
+    await page.evaluate(() => window.__game.advance(0.4));
+    await swipe(260, 0, 16);
+    const pushed = await page.evaluate(() => window.__pushed);
+    check('one long swipe = one rail hop', actions && pushed.length === 1 && pushed[0] === 'right', JSON.stringify(pushed));
     await page.evaluate(() => window.__game.advance(0.4));
     await swipe(0, -90);
     check('swipe up jumps', await page.evaluate(() => window.__game.player.airborne));

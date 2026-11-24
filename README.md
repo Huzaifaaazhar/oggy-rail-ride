@@ -129,7 +129,8 @@ The characters are original designs made for this project:
 
 - **Biscuit**, a chubby deep-navy colour-point cat with near-black ears and
   tail tip, cream muzzle, belly and mitten paws, a big red nose, green eyes,
-  cheek ruffs and a long S-curved tail.
+  cheek ruffs and a long S-curved tail. He rolls along the banister on inline
+  skates (charcoal boots, red straps, amber wheels that spin with his speed).
 - **Skitter**, a small, wiry, cocky orange roach with a spiky crest and
   zig-zag antennae.
 - **Chomp**, a huge, round, sleepy olive roach with buck teeth and droopy
@@ -190,8 +191,10 @@ mapping their bones to the same joint names. The game logic doesn't change.
     poof) and cartoon crash stingers with a sad trombone
   - the cat's yowl and angry growl, a different laugh for each roach, and a
     raspberry tease
-- **Mobile:** swipes fire mid-gesture (no waiting for release), chain within
-  one touch and block page scrolling while playing. Phones and low-core
+- **Mobile:** swipes fire mid-gesture (no waiting for release) and each finger
+  stroke is exactly one action, so a long drag never hops two rails; the
+  distance needed scales with screen size. Swipes block page scrolling while
+  playing. Phones and low-core
   devices get low graphics automatically: 1× resolution, smaller shadows, no
   fur shells.
 

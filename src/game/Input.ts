@@ -6,7 +6,6 @@ export type Action = 'left' | 'right' | 'jump' | 'slide' | 'pause' | 'start';
  */
 export class Input {
   private queue: Action[] = [];
-  private touchStart: { x: number; y: number; t: number } | null = null;
   private el: HTMLElement | Window;
 
   private attached = false;
@@ -23,6 +22,7 @@ export class Input {
     this.el.addEventListener('touchstart', this.onTouchStart as EventListener, { passive: true });
     this.el.addEventListener('touchmove', this.onTouchMove as EventListener, { passive: false });
     this.el.addEventListener('touchend', this.onTouchEnd as EventListener, { passive: true });
+    this.el.addEventListener('touchcancel', this.onTouchCancel as EventListener, { passive: true });
   }
 
   dispose() {
@@ -31,6 +31,8 @@ export class Input {
     this.el.removeEventListener('touchstart', this.onTouchStart as EventListener);
     this.el.removeEventListener('touchmove', this.onTouchMove as EventListener);
     this.el.removeEventListener('touchend', this.onTouchEnd as EventListener);
+    this.el.removeEventListener('touchcancel', this.onTouchCancel as EventListener);
+    this.stroke = null;
   }
 
   push(a: Action) {
@@ -78,45 +80,72 @@ export class Input {
     }
   };
 
+  /**
+   * One finger stroke = one action. A swipe fires as soon as the finger has
+   * travelled far enough (not on release, so it feels instant), and then the
+   * stroke is spent: continuing to drag never produces a second rail hop. To
+   * hop two rails the player swipes twice.
+   */
+  private stroke: { x: number; y: number; t: number; fired: boolean; id: number } | null = null;
+
+  /** Swipe distance scales with the screen so small phones and tablets feel alike. */
+  private threshold() {
+    const short = Math.min(window.innerWidth || 400, window.innerHeight || 800);
+    return Math.max(34, Math.min(70, short * 0.085));
+  }
+
   private onTouchStart = (e: TouchEvent) => {
+    // a second finger landing mid-stroke must not start a new swipe
+    if (this.stroke && !this.stroke.fired) return;
     const t = e.changedTouches[0];
-    this.touchStart = { x: t.clientX, y: t.clientY, t: performance.now() };
+    this.stroke = { x: t.clientX, y: t.clientY, t: performance.now(), fired: false, id: t.identifier };
   };
 
-  /** Fire as soon as the finger has travelled far enough (not on release) — feels instant. */
+  private find(e: TouchEvent) {
+    if (!this.stroke) return null;
+    for (let i = 0; i < e.changedTouches.length; i++) if (e.changedTouches[i].identifier === this.stroke.id) return e.changedTouches[i];
+    return null;
+  }
+
+  private fire(dx: number, dy: number) {
+    const s = this.stroke!;
+    s.fired = true;
+    if (Math.abs(dx) > Math.abs(dy) * 1.15) this.push(dx < 0 ? 'left' : 'right');
+    else if (Math.abs(dy) > Math.abs(dx) * 1.15) this.push(dy < 0 ? 'jump' : 'slide');
+    // a perfect diagonal is ambiguous: ignore it rather than guess
+  }
+
   private onTouchMove = (e: TouchEvent) => {
-    if (!this.touchStart) return;
     const target = e.target as HTMLElement | null;
     if (target && target.closest('button, input, .card')) return;
+    if (!this.stroke) return;
     e.preventDefault();
-    const t = e.changedTouches[0];
-    const dx = t.clientX - this.touchStart.x;
-    const dy = t.clientY - this.touchStart.y;
-    const min = 26;
-    if (Math.max(Math.abs(dx), Math.abs(dy)) < min) return;
-    if (Math.abs(dx) > Math.abs(dy)) this.push(dx < 0 ? 'left' : 'right');
-    else this.push(dy < 0 ? 'jump' : 'slide');
-    // chain further swipes within the same touch
-    this.touchStart = { x: t.clientX, y: t.clientY, t: performance.now() };
-    this.swiped = true;
+    if (this.stroke.fired) return;
+    const t = this.find(e);
+    if (!t) return;
+    const dx = t.clientX - this.stroke.x;
+    const dy = t.clientY - this.stroke.y;
+    if (Math.hypot(dx, dy) < this.threshold()) return;
+    this.fire(dx, dy);
   };
 
-  private swiped = false;
+  private onTouchCancel = () => {
+    this.stroke = null;
+  };
 
   private onTouchEnd = (e: TouchEvent) => {
-    if (!this.touchStart) return;
-    const t = e.changedTouches[0];
-    const dx = t.clientX - this.touchStart.x;
-    const dy = t.clientY - this.touchStart.y;
-    const dt = performance.now() - this.touchStart.t;
-    this.touchStart = null;
-    if (this.swiped) {
-      this.swiped = false;
-      return;
-    }
-    const min = 22;
-    if (Math.max(Math.abs(dx), Math.abs(dy)) < min || dt > 700) return;
-    if (Math.abs(dx) > Math.abs(dy)) this.push(dx < 0 ? 'left' : 'right');
-    else this.push(dy < 0 ? 'jump' : 'slide');
+    const s = this.stroke;
+    const t = this.find(e);
+    if (!s || !t) return;
+    this.stroke = null;
+    if (s.fired) return;
+    // a quick flick that ended before reaching the drag threshold still counts
+    const dx = t.clientX - s.x;
+    const dy = t.clientY - s.y;
+    const dt = performance.now() - s.t;
+    if (Math.hypot(dx, dy) < this.threshold() * 0.6 || dt > 350) return;
+    this.stroke = s;
+    this.fire(dx, dy);
+    this.stroke = null;
   };
 }

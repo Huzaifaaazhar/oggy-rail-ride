@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { clamp, damp, lerp } from '../util/math';
 import { CAT_DIMS, CAT_JOINTS, CatModel } from './CatModel';
+import { SKATE_LIFT } from './skates';
 import { Animator, ClipFn, MotionProbe, Pose, solveLegIK } from './rig';
 
 export interface CatParams {
@@ -13,6 +14,8 @@ export interface CatParams {
   lookX: number;
   lookY: number;
   tuck: number;
+  /** rolling speed under the skates in m/s (0 when airborne) */
+  ground: number;
 }
 
 const A = CAT_DIMS.ankle;
@@ -20,7 +23,7 @@ const sin = Math.sin;
 const bump = (p: number) => Math.sin(Math.PI * clamp(p, 0, 1));
 
 const clips: Record<string, ClipFn<CatParams>> = {
-  /** Balancing on the handrail, slippers in line, arms out like a tightrope walker. */
+  /** Rolling along the handrail, skates in line, arms out like a tightrope walker. */
   ride: (P, t, a) => {
     const sway = sin(t * 2.2);
     const bob = sin(t * 7.2);
@@ -280,6 +283,7 @@ export class CatCharacter {
       lookX: 0,
       lookY: 0,
       tuck: 0,
+      ground: 0,
     });
     this.animator.setBase('ride', 0);
   }
@@ -354,8 +358,8 @@ export class CatCharacter {
       const w = Math.min(1, ik.weight);
       tmpL.copy(ik.l).divideScalar(ik.weight);
       tmpR.copy(ik.r).divideScalar(ik.weight);
-      tmpL.y += a.params.tuck;
-      tmpR.y += a.params.tuck * 0.85;
+      tmpL.y += a.params.tuck + SKATE_LIFT;
+      tmpR.y += a.params.tuck * 0.85 + SKATE_LIFT;
       m.root.updateWorldMatrix(true, false);
       m.root.localToWorld(tmpL);
       m.root.localToWorld(tmpR);
@@ -363,6 +367,8 @@ export class CatCharacter {
       solveLegIK(J.thighL, J.shinL, J.footL, CAT_DIMS.l1, CAT_DIMS.l2, tmpL, w, m.root);
       solveLegIK(J.thighR, J.shinR, J.footR, CAT_DIMS.l1, CAT_DIMS.l2, tmpR, w, m.root);
     }
+
+    m.spinWheels(dt, a.params.ground);
 
     // face
     const f = pose.face;

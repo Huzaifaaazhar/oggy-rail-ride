@@ -516,6 +516,7 @@ export class Game {
       lookX: 0,
       lookY: this.lookAtRoachT > 0 ? 0.25 : 0,
       tuck: p.hopArc * 0.35,
+      ground: p.airborne || p.crashed ? 0 : p.speed,
     });
     const r = this.cat.root;
     r.position.copy(p.position);
