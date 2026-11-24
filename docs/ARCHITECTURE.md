@@ -1,0 +1,172 @@
+# Architecture
+
+## Frame loop
+
+`Game.update(dt)` (called from one R3F `useFrame`) runs the systems in a fixed order:
+
+```
+Input → Autopilot (optional) → PlayerController → Track.ensure / TrackStreamer
+      → EnvironmentStreamer (time-sliced) → Entities (spawn, collide, coins)
+      → RoachSquad (AI, shows, throws) → CatCharacter (anim, IK, face)
+      → ChaseCamera → atmosphere (fog/sky per room) → HUD store (10 Hz)
+```
+
+React owns only the canvas, lights and the DOM HUD. All simulation state lives
+in plain classes, so no React re-renders happen per frame. The HUD reads a
+zustand store that is updated about 10 times a second.
+
+## Module map
+
+| Module | Responsibility |
+| --- | --- |
+| `track/pieces.ts` | Analytic geometry programs (heading, pitch, roll and sidestep as functions of u) and lane programs (rail offsets, balustrade, crossing flag) |
+| `track/Track.ts` | Planner (weighted piece choice, difficulty, bounds simulation), integration into chunked sample storage, interpolated `TrackFrame` queries, hop rules |
+| `track/TrackMeshBuilder.ts` | Handrail profile sweeps, bottom rails, instanced spindles and brass collars, carpeted stair treads |
+| `game/PlayerController.ts` | Track-space rider state: s, speed model, rail hops, jump/slide, hit/stumble/wipeout |
+| `game/ChaseCamera.ts` | Spline-following chase rig plus title showcase orbit |
+| `entities/` | Obstacle/coin prefabs, fair pattern spawning, track-space collision, sparkles |
+| `game/RoachSquad.ts` | Roach runners, avoidance, behaviour scheduler, projectiles |
+| `characters/rig.ts` | Pose accumulator, Animator (base cross-fade, additive layers, actions), two-bone IK, spring chains, motion probe |
+| `characters/face.ts` | Eyeballs, lids, catch-lights, dizzy spirals, mouth rig, brows |
+| `characters/*Model.ts`, `*Character.ts` | Model construction, and clip libraries plus gameplay-to-animation mapping |
+| `environment/` | Themes, giant prop library, zone streamer with clearance checks and geometry baking |
+| `ui/` | HUD, title, pause and game-over overlays |
+
+---
+
+# ADR-001: Track-space traversal on an integrated analytic centreline
+
+**Status:** Accepted
+**Date:** 2026-11-23
+
+## Context
+The game's identity is a three-rail coaster that loops, corkscrews, spirals,
+merges, splits and crosses. The rider must never fall off, including
+upside-down, and the camera has to follow it smoothly. Rails need to be
+continuous and endless.
+
+## Decision
+Generate the centreline by integrating **heading (about world up)** and
+**pitch (about an always-horizontal right axis)** along arc length. Pieces
+define these angles as absolute smooth functions, so every piece ends exactly
+where it intends to. Roll and the three rail offsets are layered on afterwards
+in the rolled frame. Riders, obstacles, coins and the camera all live in
+**track space** (s, rail, height). Collision is interval tests in that space.
+
+## Options considered
+
+### A: Integrated heading/pitch with separate roll (chosen)
+| Dimension | Assessment |
+| --- | --- |
+| Complexity | Medium |
+| Robustness in loops | Exact: frames come straight from angles, with no gimbal lock or drift |
+| Authoring | Pieces are short functions; continuity is guaranteed by construction |
+
+### B: Catmull-Rom spline through control points + parallel-transport frames
+**Pros:** standard and flexible shapes. **Cons:** twist accumulates over long
+runs, loops need hand-placed control points, and pieces don't close exactly.
+
+### C: Physics rigid body kept on a rail by constraints
+**Cons:** unstable at speed and upside-down, hard to make deterministic, and it
+was explicitly ruled out by the brief.
+
+## Consequences
+- Easier: new piece types are ~20 lines; tests can assert continuity,
+  orthonormal frames, bounds and clearances across thousands of metres.
+- Harder: shapes that need yaw while inverted would need a body-frame
+  extension.
+- Revisit: floating-origin rebasing for very long sessions (positions are
+  float64 on the CPU, float32 on the GPU).
+
+# ADR-002: Procedurally sculpted, skinned characters (revised)
+
+**Status:** Accepted, superseding the first primitive-assembly rigs
+
+Each character is described by a serializable *sculpt spec*: blended
+signed-distance shapes, each tagged with a bone; carving shapes (eye sockets,
+mouth crease, inner ears); paint regions for colour and roughness; and weight
+overrides (jaw, lip corners). A Web Worker turns the spec into one continuous
+mesh:
+
+1. field stamping
+2. surface nets
+3. Newton projection onto the exact field
+4. Laplacian relaxation
+5. analytic normals
+6. painted vertex colour and roughness
+7. four-bone skin weights
+
+The main thread builds bones from the same spec and binds a `SkinnedMesh` with
+model-space inverse bind matrices. That means meshes can arrive after the
+character is already animating in the world.
+
+Heads are separate, finer sculpts on the same skeleton, with the seam buried in
+the neck. Faces are geometry: eye sockets, a hinged jaw, lip-corner bones, a
+tongue and teeth.
+
+A shared shader adds per-vertex roughness, rest-pose-anchored micro bump and a
+rim light. The cat adds five fur shells that drop out with distance.
+
+The rig interface (joint names plus `FaceState`) is unchanged, so gameplay code
+didn't change. It's also still the seam for swapping in artist-made glTF models
+later.
+
+# ADR-003: Zone streaming with time-sliced construction and geometry baking
+
+**Status:** Accepted
+
+Rooms are built per 320 m zone along −z, once the generated track has fully
+passed the zone, so clearance checks see every nearby rail. Construction is a
+generator stepped within a ~4 ms per-frame budget. Static meshes are merged per
+material, turning hundreds of props into a few draw calls. This took the
+worst-case frame hitch from ~230 ms to ~40 ms in headless profiling.
+
+# ADR-004: Gameplay rules live in pure, testable modules
+
+**Status:** Accepted (Part 2)
+
+- `game/difficulty.ts` holds the speed milestones and the difficulty curve.
+- `entities/catalog.ts` holds the obstacle classes, sizes and motion types.
+- `entities/patterns.ts` holds the row and coin pattern library and the
+  fairness rule (at least one rank free of blocks, counting both ends of
+  sliding furniture).
+
+None of these import three.js, so vitest exercises them directly.
+
+`Entities` turns specs into meshes, animates motion and runs swept
+track-space collision. Each frame it tests the whole distance travelled, not
+a point, so a 50 m/s rider at 20 fps can't skip a thin washing line. Lateral
+placement uses physical ranks (left, middle, right), so obstacles and coins
+follow the rails through crossings where rail indices swap sides.
+
+`RoachSquad` places every trick through `Entities.tryPlace`, which slides the
+set forward to a clear gap and re-runs the fairness rule.
+
+The roaches' distance is the player's distance plus a gap clamped to at least
+6.5 m. "Never caught" is a structural invariant, not tuning.
+
+# ADR-005: Synthesized audio, director-driven set pieces, local profile
+
+**Status:** Accepted (Part 3)
+
+- **Audio** (`audio/AudioEngine.ts`) builds every sound from oscillators,
+  noise and filters on a Web Audio graph (music, effects and ambience buses
+  into a compressor). The music is an original four-bar progression and motif
+  played by a look-ahead sequencer, and the arrangement grows with speed
+  level. There are no audio files to license or download, and it starts on
+  the first user gesture.
+- **Signature moments** (`game/Director.ts`) are short scripted beats. Each
+  one goes through the same fairness-checked placement and squad gap rules
+  as normal play, so a set piece can't create an impossible row or a catch.
+  The lever moment doesn't edit the track: it times Skitter's gesture to a
+  split or crossing that was already generated.
+- **Profile** (`meta/profile.ts`) is a zustand store saved to localStorage:
+  bank, history, achievements, cosmetics, daily challenge and settings.
+  Achievements are evaluated from per-run tallies when a run ends. The daily
+  challenge is a hash of the date, which gives a goal and a track seed.
+
+## Known follow-ups
+- Cloud save / leaderboards (the profile is local to the browser).
+- Move the remaining per-chunk work (rail sweeps) into the same time-sliced path.
+- Level-of-detail for spindles on low-end mobile GPUs.
+- Swap in artist-made character models once assets are available.
